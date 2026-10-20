@@ -1,4 +1,4 @@
-# 轨道无限跑酷 · Rail Runner
+﻿# 轨道无限跑酷 · Rail Runner
 
 **在线试玩 → <https://gubao-tian.github.io/rail-runner/>**
 
@@ -6,7 +6,7 @@
 
 三轨无限跑酷，**纯 Web 实现、零依赖、零素材、离线可玩**。按
 [`轨道无限跑酷-PRD-V2.0`](./docs/PRD-V2.0.md) 的 P0 需求实现，手感参数、状态机、
-关卡生成规则、存档策略全部与 PRD 对齐；交付前用 161 项离线断言 + 浏览器内自检 +
+关卡生成规则、存档策略全部与 PRD 对齐；交付前用 165 项离线断言 + 浏览器内自检 +
 6×240km 完美玩家通过性模拟做过验证。
 
 ![游戏画面](./docs/screenshots/gameplay.png)
@@ -103,7 +103,7 @@ js/render.js          Canvas 伪 3D 透视渲染
 js/game.js            编排：世界流 / 计分 / 死亡归因 / UI
 js/selftest.js        ?selftest=1 浏览器内自检
 js/main.js            启动 + 全局错误兜底
-tools/logic-test.mjs  161 项离线断言 + 完美玩家通过性模拟
+tools/logic-test.mjs  165 项离线断言 + 完美玩家通过性模拟
 tools/balance-report.mjs  密度统计 → docs/balance-report.md/csv
 tools/shot.mjs        从浏览器场景录制里提取截图（开发期小工具）
 docs/                 平衡性报告、截图、PRD 副本
@@ -145,7 +145,7 @@ weightEnd: { empty: [0.45, 0.08], low: [0.25, 0.22], ... },
 
 ## 验证
 
-### 1. 离线断言（161 项）
+### 1. 离线断言（165 项）
 
 ```bash
 node tools/logic-test.mjs
@@ -157,7 +157,7 @@ node tools/logic-test.mjs
 
 ### 2. 浏览器内自检
 
-打开 `index.html?selftest=1`，页面会跑 11 项检查（含 30 秒集成模拟），结果同时写入
+打开 `index.html?selftest=1`，页面会跑 14 项检查（含 30 秒集成模拟），结果同时写入
 控制台与页面；标题变为 `SELFTEST PASS` 即通过。
 
 ### 3. 平衡性报告

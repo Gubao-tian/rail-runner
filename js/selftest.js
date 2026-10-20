@@ -71,6 +71,26 @@
       var easing = p.crouch > 0 && p.crouch < 1;
       ok('下蹲有缓动且判定即时', lowRightAway && easing, 'crouch=' + p.crouch.toFixed(3));
 
+      /* ---- 3.2 换道被受击打断 ---- */
+      p = new RR.Player({ lane: 1 });
+      p.apply('right');
+      p.step(0.075);
+      p.hit();
+      ok('受击后回到轨道中心',
+        Math.abs(p.x - RR.Blocks.laneX(p.lane)) < 1e-9, 'lane=' + p.lane + ' x=' + p.x);
+
+      /* ---- 3.3 埋点写盘节流 ---- */
+      if (global.RR_GAME && global.RR_GAME.telemetry) {
+        var tel = global.RR_GAME.telemetry;
+        var before = tel.buffer.length;
+        for (var q = 0; q < 20; q++) tel.log('selftest_probe', { i: q });
+        ok('20 次埋点合并到一次节流写盘',
+          tel.flushTimer !== null && tel.buffer.length >= before + 20,
+          'timer=' + (tel.flushTimer !== null));
+        tel.flushNow();
+        ok('flushNow 立即落盘', tel.flushTimer === null);
+      }
+
       /* ---- 4. 存档降级 ---- */
       var store = new RR.MemoryStorage();
       var svc = new RR.SaveService(store);

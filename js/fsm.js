@@ -214,7 +214,29 @@
     };
   };
 
+  /** 把换道瞬间结算到最近的一条轨道，消除"两轨之间"的中间态 */
+  Player.prototype.snapToNearestLane = function () {
+    var best = this.lane;
+    var bestDist = Math.abs(this.x - laneX(this.lane));
+    for (var l = 0; l < C.lanes; l++) {
+      var d = Math.abs(this.x - laneX(l));
+      if (d < bestDist) {
+        bestDist = d;
+        best = l;
+      }
+    }
+    this.lane = best;
+    this.targetLane = best;
+    this.x = laneX(best);
+    this.switchFrom = this.x;
+    this.switchT = 0;
+    return best;
+  };
+
   Player.prototype.hit = function () {
+    // 受击会打断换道：先把位置结算到最近轨道，否则角色会永久卡在两轨之间，
+    // 而后续换道又用 lane 计算目标，两者失同步。
+    if (this.state === S.SWITCH) this.snapToNearestLane();
     this.state = S.HIT;
     this.hitT = C.timing.hitStun;
     this.vy = 0;

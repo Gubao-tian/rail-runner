@@ -273,6 +273,7 @@
     this.shake = 0;
     this.lastJumpAt = -99;
     this.lastSlideAt = -99;
+    this.rejectedInputs = 0;
     this.player.reset(1);
 
     this.seed = demo
@@ -335,7 +336,12 @@
     }
 
     var accepted = this.player.apply(cmd);
-    this.telemetry.log('input_cmd', { cmd: cmd, accepted: accepted, d: this.distance });
+    if (accepted) {
+      // 只记被接受的指令：被丢的指令按局计数，避免把环形缓冲刷满
+      this.telemetry.log('input_cmd', { cmd: cmd, d: this.distance });
+    } else {
+      this.rejectedInputs = (this.rejectedInputs || 0) + 1;
+    }
 
     if (!accepted) return;
 
@@ -586,6 +592,7 @@
       distance: this.distance,
       score: this.score,
       coins: this.coinCount,
+      rejected_inputs: this.rejectedInputs || 0,
       duration: this.time - (this.runStartTime || 0)
     });
     this.telemetry.log('death_detail', {
@@ -602,6 +609,9 @@
         this.telemetry.log('skin_unlock', { skin_id: skin.id, cost: 0 });
       }, this);
     }
+
+    // 结算即落盘：不等 1 秒节流
+    this.telemetry.flushNow();
   };
 
   Game.prototype.explainDeath = function (block, obs) {
@@ -712,6 +722,7 @@
     this.audio.setMusicDucked(true);
     this.audio.sfx('click');
     this.telemetry.log('run_pause', { distance: this.distance });
+    this.telemetry.flushNow();
   };
 
   Game.prototype.resume = function () {

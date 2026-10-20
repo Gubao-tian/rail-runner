@@ -9,12 +9,27 @@
 
   var KEY = 'railrunner.telemetry.v2';
   var MAX = 400;
+  var FLUSH_DELAY = 1000;
 
   function Telemetry() {
     this.buffer = [];
     this.enabled = true;
+    this.flushTimer = null;
     this.load();
+    this.bindLifecycle();
   }
+
+  /** 页面隐藏/卸载时补写一次，避免最后 1 秒的数据丢失 */
+  Telemetry.prototype.bindLifecycle = function () {
+    var self = this;
+    var doc = global.document;
+    if (!doc || !doc.addEventListener) return;
+    var flushNow = function () { self.flushNow(); };
+    doc.addEventListener('visibilitychange', function () {
+      if (doc.hidden) flushNow();
+    });
+    global.addEventListener('pagehide', flushNow);
+  };
 
   Telemetry.prototype.load = function () {
     try {
@@ -34,6 +49,28 @@
     } catch (e) { /* 忽略配额/隐私模式 */ }
   };
 
+  /**
+   * 写入是同步且整块序列化的（400 条约 30KB），所以按 1 秒合并。
+   * 否则每按一次键都要序列化 + 写盘，移动端会掉帧。
+   */
+  Telemetry.prototype.scheduleFlush = function () {
+    if (this.flushTimer) return;
+    var self = this;
+    this.flushTimer = global.setTimeout(function () {
+      self.flushTimer = null;
+      self.flush();
+    }, FLUSH_DELAY);
+  };
+
+  /** 立即落盘（死亡结算、暂停、页面隐藏时调用） */
+  Telemetry.prototype.flushNow = function () {
+    if (this.flushTimer) {
+      global.clearTimeout(this.flushTimer);
+      this.flushTimer = null;
+    }
+    this.flush();
+  };
+
   Telemetry.prototype.log = function (event, data) {
     if (!this.enabled) return;
     try {
@@ -49,12 +86,16 @@
       }
       this.buffer.push(rec);
       if (this.buffer.length > MAX) this.buffer.splice(0, this.buffer.length - MAX);
-      this.flush();
+      this.scheduleFlush();
     } catch (e) { /* 忽略 */ }
   };
 
   Telemetry.prototype.clear = function () {
     this.buffer = [];
+    if (this.flushTimer) {
+      global.clearTimeout(this.flushTimer);
+      this.flushTimer = null;
+    }
     try {
       if (global.localStorage) global.localStorage.removeItem(KEY);
     } catch (e) { /* 忽略 */ }

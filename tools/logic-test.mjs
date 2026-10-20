@@ -322,6 +322,20 @@ ok('死亡后不移动', p.y === frozen.y && p.state === S.DEATH);
 ok('死亡后指令全丢弃',
   p.apply(CMD.JUMP) === false && p.apply(CMD.LEFT) === false && p.apply(CMD.USE_ITEM) === false);
 
+/* ---- 换道被受击打断（评审 P1-1） ---- */
+p = newPlayer(1);
+p.apply(CMD.RIGHT);
+p.step(0.075); // 换道进行中段
+ok('此刻确实停在两轨之间', Math.abs(p.x - RR.Blocks.laneX(2)) > 0.5, `x=${p.x.toFixed(2)}`);
+p.hit();
+ok('受击后立刻结算到轨道中心',
+  Math.abs(p.x - RR.Blocks.laneX(p.lane)) < 1e-9, `lane=${p.lane} x=${p.x}`);
+ok('结算到离得最近的那条轨道', p.lane === 2, `lane=${p.lane}`);
+let hitGuard = 0;
+while (p.state === S.HIT && hitGuard++ < 200) p.step(dt);
+ok('硬直结束后仍站在轨道中心',
+  p.state === S.RUN && Math.abs(p.x - RR.Blocks.laneX(p.lane)) < 1e-9);
+
 /* ---- 下蹲过渡（动作"柔和"的关键） ---- */
 p = newPlayer(1);
 ok('初始为站姿', p.crouch === 0 && p.box().y1 === C.player.height);
