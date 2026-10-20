@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+<meta name="theme-color" content="#05060f" />
+<meta name="description" content="三轨无限跑酷：确定性关卡、可解释死亡、3 秒重开。" />
+<title>轨道无限跑酷 · Rail Runner</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230a0e1c'/%3E%3Cpath d='M8 22 L16 8 L24 22 Z' fill='%23ff6b3d'/%3E%3C/svg%3E" />
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+<div id="app">
+  <canvas id="game" aria-label="游戏画面"></canvas>
+
+  <div id="hud" class="hud hidden">
+    <div class="hud-bar">
+      <div class="hud-left">
+        <div class="score-row"><span id="score">0</span><span class="unit">分</span></div>
+        <div class="meta-row"><span id="dist">0 m</span><span class="sep">·</span><span id="tier">教学区</span></div>
+      </div>
+      <div class="hud-right">
+        <div class="stat"><span class="ico">◆</span><span id="coins">0</span></div>
+        <div class="stat small">最高 <span id="best">0</span></div>
+        <button id="btn-pause" class="icon-btn" aria-label="暂停">II</button>
+      </div>
+    </div>
+    <div id="effects" class="effects"></div>
+    <div id="items" class="items"></div>
+  </div>
+
+  <div id="countdown" class="countdown hidden"></div>
+  <div id="toast" class="toast"></div>
+
+  <section id="screen-menu" class="screen">
+    <div class="menu-card">
+      <p class="eyebrow">RAIL RUNNER · 三轨无限跑酷</p>
+      <h1>轨道<span>无限跑酷</span></h1>
+      <p class="tagline">不是更好玩的跑酷，而是更讲道理的跑酷。</p>
+      <p id="menu-best" class="best">还没有记录，先跑一局</p>
+      <p id="menu-gap" class="gap">三轨 · 五指令 · 零教程</p>
+      <button id="btn-start" class="btn primary big">开始游戏</button>
+      <button id="btn-settings-menu" class="btn ghost">设置</button>
+      <ul class="keys">
+        <li><b>↑ / W / 空格</b><span>跳</span></li>
+        <li><b>↓ / S</b><span>滑铲</span></li>
+        <li><b>← → / A D</b><span>换道</span></li>
+        <li><b>1 2 3 / Q</b><span>用道具</span></li>
+        <li><b>Esc</b><span>暂停</span></li>
+        <li><b>触屏</b><span>滑动 / 轻点跳</span></li>
+      </ul>
+      <p class="foot">MIT · 纯程序化画面与合成音频 · 无需联网</p>
+    </div>
+  </section>
+
+  <section id="screen-pause" class="screen hidden">
+    <div class="panel">
+      <p class="eyebrow">PAUSED</p>
+      <h2>已暂停</h2>
+      <p class="muted">位移已冻结，音乐已衰减到 40%</p>
+      <button id="btn-resume" class="btn primary">继续</button>
+      <button id="btn-restart-pause" class="btn">重新开始</button>
+      <button id="btn-home-pause" class="btn ghost">返回主页</button>
+    </div>
+  </section>
+
+  <section id="screen-dead" class="screen hidden">
+    <div class="panel dead">
+      <p class="eyebrow">RUN ENDED</p>
+      <h2 id="dead-reason-title">撞上了</h2>
+      <p id="dead-reason-hint" class="hint"></p>
+      <p id="dead-detail" class="detail muted"></p>
+
+      <div class="result-grid">
+        <div class="cell"><span class="num" id="dead-score">0</span><span class="label">得分</span></div>
+        <div class="cell"><span class="num" id="dead-dist">0 m</span><span class="label">距离</span></div>
+        <div class="cell"><span class="num" id="dead-coins">0</span><span class="label">金币</span></div>
+      </div>
+
+      <p id="dead-best-value" class="best-value"></p>
+
+      <div class="actions">
+        <button id="btn-retry" class="btn primary">再来一局</button>
+        <button id="btn-home" class="btn ghost">返回主页</button>
+      </div>
+      <p id="dead-hint" class="dead-hint">点击任意处 / 空格 再来一局</p>
+    </div>
+  </section>
+
+  <section id="screen-settings" class="screen hidden">
+    <div class="panel wide">
+      <p class="eyebrow">SETTINGS</p>
+      <h2>设置</h2>
+
+      <label class="row">
+        <span>音效</span>
+        <input id="set-sfx" type="checkbox" />
+      </label>
+      <label class="row">
+        <span>音乐</span>
+        <input id="set-music" type="checkbox" />
+      </label>
+      <label class="row">
+        <span>震动<span class="muted small">（移动端）</span></span>
+        <input id="set-vibrate" type="checkbox" />
+      </label>
+      <label class="row">
+        <span>画质</span>
+        <select id="set-quality">
+          <option value="high">高</option>
+          <option value="low">低（省电）</option>
+        </select>
+      </label>
+
+      <h3>皮肤</h3>
+      <div id="skin-list" class="skins"></div>
+      <p class="muted small">皮肤按最高里程解锁，不影响手感与判定。</p>
+
+      <div class="actions column">
+        <button id="btn-close-settings" class="btn primary">完成</button>
+        <button id="btn-reset-save" class="btn danger">清空本地存档</button>
+      </div>
+    </div>
+  </section>
+</div>
+
+<noscript>这个游戏需要启用 JavaScript。</noscript>
+
+<script src="js/config.js"></script>
+<script src="js/rng.js"></script>
+<script src="js/difficulty.js"></script>
+<script src="js/blocks.js"></script>
+<script src="js/fsm.js"></script>
+<script src="js/collision.js"></script>
+<script src="js/save.js"></script>
+<script src="js/telemetry.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/input.js"></script>
+<script src="js/render.js"></script>
+<script src="js/game.js"></script>
+<script src="js/selftest.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
