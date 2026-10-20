@@ -1,4 +1,4 @@
-﻿# 轨道无限跑酷 · Rail Runner
+# 轨道无限跑酷 · Rail Runner
 
 **在线试玩 → <https://gubao-tian.github.io/rail-runner/>**
 
@@ -105,6 +105,9 @@ js/selftest.js        ?selftest=1 浏览器内自检
 js/main.js            启动 + 全局错误兜底
 tools/logic-test.mjs  165 项离线断言 + 完美玩家通过性模拟
 tools/balance-report.mjs  密度统计 → docs/balance-report.md/csv
+tools/validate.py     Python 离线校验（静态规则 / 无解率 / 分布）
+tools/export-config.mjs  js/config.js → build/config.json
+tools/dump-blocks.mjs  用真实生成器批量导出 → build/blocks.json
 tools/shot.mjs        从浏览器场景录制里提取截图（开发期小工具）
 docs/                 平衡性报告、截图、PRD 副本
 ```
@@ -166,6 +169,24 @@ node tools/logic-test.mjs
 node tools/balance-report.mjs   # → docs/balance-report.md / .csv
 ```
 
+### 4. Python 离线校验（PRD §9.3 的原始方案）
+
+Node 侧已经验过，但 PRD 要的是**另一套语言独立复核**同一份关卡，所以补了这个：
+
+```bash
+node tools/export-config.mjs      # js/config.js → build/config.json
+node tools/dump-blocks.mjs 100000 20261020   # 用真实生成器导出 -> build/blocks.json
+python tools/validate.py          # → docs/validation-report.md / .csv
+```
+
+它做三件事，数据全部来自同一份 `GameConfig` 与同一套 `Blocks.generate`：
+
+1. **静态规则**：三轨全封、连续双轨、新手保护、道具是否只落在安全轨
+2. **完美玩家可解性**：视野 40m / 反应 250ms 模型下，每块地是否存在可行策略
+3. **类型分布**：实测占比 vs 连排禁令下的平稳分布（只观察，不阻断）
+
+退出码 0 = 通过，1 = 有违例或无解，2 = 缺输入文件。三个种子各 10 万块地实测：静态违例 0、无解 0。
+
 ### 4. 调试参数
 
 - `?autoplay=1`：跳过菜单直接开局（截图 / 回归用）
@@ -178,8 +199,10 @@ node tools/balance-report.mjs   # → docs/balance-report.md / .csv
 1. **平台**：PRD 的主版本是 Unity，试玩版是 three.js。本环境无法构建、无法运行
    Unity，因此交付**纯 Web 版**（无 three.js 依赖）。玩法数据层、状态机、生成规则与
    PRD 一一对应，迁 Unity 时照搬 `config/difficulty/blocks/fsm` 即可。
-2. **离线校验语言**：§9.3 写的是 Python，这里用 Node 实现同一套跑批。关键约束是
-   "校验脚本必须读同一份 GameConfig"，这一点已满足；换成两套语言反而会漂移。
+2. **离线校验语言**：§9.3 写的是 Python。早期只有 Node 跑批，现已补上
+   `tools/validate.py` 做独立复核，数据由 `node tools/export-config.mjs` 与
+   `node tools/dump-blocks.mjs` 从同一份 `GameConfig`、同一套生成器导出——
+   两套语言验同一份关卡，既满足 §9.3，也不会出现参数漂移。
 3. **结算页**：附录 A.2 写"3 秒后自动重开"，实现为"随时可点/按空格重开 + 3 秒提示"。
    自动重开会打断玩家读死亡归因，而 PRD §5.5 的核心诉求正是"死得明白"。
 4. **双轨权重**：§5.3 同时给了"线性升至 0.30"和一张非线性表格。按"表格更具体"取

@@ -9,12 +9,13 @@ desktop.ini
 node_modules/
 *.log
 shots/
+build/
 
-# Ì½²âÎÄ¼ş
+# æ¢æµ‹æ–‡ä»¶
 .probe.txt
 
-# ½ö±¾»úÊ¹ÓÃµÄÍÆËÍ½Å±¾
+# ä»…æœ¬æœºä½¿ç”¨çš„æ¨é€è„šæœ¬
 tools/askpass.cmd
 
-# ÆÀÉóÓÃÁÙÊ±½Å±¾
+# è¯„å®¡ç”¨ä¸´æ—¶è„šæœ¬
 tools/_review_*.mjs

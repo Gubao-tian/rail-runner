@@ -147,6 +147,13 @@
       coinBase: 10
     },
 
+    /* ---------------- 离线校验用玩家模型（PRD §9.3） ---------------- */
+    analysis: {
+      vision: 40,          // 完美玩家前方视野（米）
+      reaction: 0.250,     // 反应时间（秒）
+      batchBlocks: 100000  // 批量校验默认生成地块数
+    },
+
     /* ---------------- 皮肤（按里程里程碑解锁） ---------------- */
     skins: [
       { id: 'classic', name: '原色', color: '#5ad1ff', accent: '#ffffff', unlockDistance: 0 },
