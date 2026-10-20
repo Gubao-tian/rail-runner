@@ -1,5 +1,7 @@
 # 轨道无限跑酷 · Rail Runner
 
+**在线试玩 → <https://gubao-tian.github.io/rail-runner/>**
+
 > 不是更好玩的跑酷，而是更讲道理的跑酷。
 
 三轨无限跑酷，**纯 Web 实现、零依赖、零素材、离线可玩**。按

@@ -12,3 +12,6 @@ shots/
 
 # 探测文件
 .probe.txt
+
+# 仅本机使用的推送脚本
+tools/askpass.cmd
