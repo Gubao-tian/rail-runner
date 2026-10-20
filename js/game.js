@@ -42,6 +42,7 @@
 
     this.state = 'menu';
     this.time = 0;
+    this.animTime = 0;
     this.lastTs = 0;
     this.acc = 0;
     this.timeScale = 1;
@@ -759,6 +760,9 @@
   };
 
   Game.prototype.update = function (dt) {
+    // 暂停时冻结动画时钟：粒子、金币旋转、星空闪烁都停住（R 视觉一致性）
+    if (this.state !== 'paused') this.animTime = this.time;
+
     this.shake = Math.max(0, this.shake - dt * 2.4);
 
     if (this.state === 'menu') {
@@ -794,14 +798,17 @@
       this.deadT += dt;
     }
 
-    this.updateParticles(dt);
+    // 粒子只在世界推进时演化；暂停/结算阶段冻结，避免"暂停了还在动"
+    if (this.state === 'playing') this.updateParticles(dt);
     this.updateHud(false);
   };
 
   Game.prototype.sampleFps = function (dt) {
+    // 跳过 dt<=0 的虚帧（首帧 / 恢复后首帧）：否则 1/max(dt,eps) 会贡献 10000fps
+    if (!(dt > 0)) return;
     var s = this.fps || (this.fps = { frames: 0, acc: 0, sampleT: 0, avg: 60, min: 60 });
     s.frames++;
-    s.acc += 1 / Math.max(dt, 0.0001);
+    s.acc += 1 / dt;
     s.sampleT += dt;
     if (s.sampleT >= 5) {
       var avg = s.acc / Math.max(1, s.frames);
@@ -878,7 +885,7 @@
       blocks: this.blocks,
       player: this.player,
       particles: this.particles,
-      time: this.time,
+      time: this.animTime,
       state: this.state,
       shake: this.shake,
       skin: this.skin(),
