@@ -9,7 +9,7 @@
   'use strict';
 
   var CONFIG = {
-    version: '2.1.0',
+    version: '2.2.0',
 
     /* ---------------- 轨道与地块 ---------------- */
     lanes: 3,              // 三轨，禁止 1<->3 直跳
@@ -57,7 +57,6 @@
       deathTimeScale: 0.25,// 死亡慢动作倍率
       deathFreeze: 0.55,   // 撞击后到结算面板出现的延迟
       highlight: 1.5,      // 撞击点高亮
-      restartAuto: 3.0,    // 结算页 3 秒后自动可重开
       comboWindow: 2.0     // 连击窗口
     },
 
@@ -81,7 +80,13 @@
       crouchHipY: 0.34,      // 蹲姿髋部高度（米，站姿 0.72）
       crouchShoulderY: 0.68, // 蹲姿肩部高度（米，站姿 1.34）
       crouchHeadY: 0.82,     // 蹲姿头部中心高度（米，站姿 1.56）
-      crouchWidth: 0.58      // 蹲姿躯干宽度（米，站姿 0.48）
+      crouchWidth: 0.58,     // 蹲姿躯干宽度（米，站姿 0.48）
+
+      // 站姿骨架高度（米）：下蹲时按 crouch 权重过渡到上面的 crouch* 系列
+      standHipY: 0.72,
+      standShoulderY: 1.34,
+      standHeadY: 1.56,
+      standWidth: 0.48
     },
 
     /* ---------------- 障碍尺寸（形状区分，色盲友好） ---------------- */
@@ -110,8 +115,7 @@
       value: 10,
       chainStep: 8,        // 每 8 连击 +1 倍率
       chainMax: 4,         // 倍率上限 5x (1+4)
-      magnetRadius: 7.0,
-      magnetPull: 26.0
+      magnetRadius: 7.0
     },
 
     /* ---------------- 道具（R-10 主动使用） ---------------- */
@@ -119,8 +123,7 @@
       slots: 3,
       shieldDuration: 12.0,
       magnetDuration: 8.0,
-      doubleDuration: 8.0,
-      dropWeight: 0.12
+      doubleDuration: 8.0
     },
 
     /* ---------------- 相机 ---------------- */
@@ -136,9 +139,7 @@
     /* ---------------- 世界流 ---------------- */
     world: {
       viewDistance: 135,   // 逻辑保留距离
-      despawnBehind: 40,
-      poolBlocks: 8,       // R-06 预实例化 5 块，这里取 8 留余量
-      fogStart: 95
+      despawnBehind: 40
     },
 
     /* ---------------- 计分 ---------------- */

@@ -424,16 +424,23 @@
     var phase = view.runPhase || 0;
 
     ctx.save();
-    ctx.translate(base.x, base.y - player.y * s);
+    var dead = view.dead;
+    // 死亡贴地：无论撞时是否腾空，都按落地表现"扑街"
+    var py = dead ? 0 : player.y;
+    ctx.translate(base.x, base.y - py * s);
     ctx.scale(s, -s); // 以"米"为单位，y 向上
+    // 死亡姿态：整体绕脚部支点向后倒下（view.dead 此前一直是传了不用，这里落地）
+    if (dead) {
+      ctx.rotate(-1.45);
+    }
 
     // 蹲姿：只降重心 + 屈膝，身体保持直立，不做整体前倾
     var P = C.player;
-    var hipY = lerp(0.72, P.crouchHipY, k);
-    var shoulderY = lerp(1.34, P.crouchShoulderY, k);
-    var headY = lerp(1.56, P.crouchHeadY, k);
+    var hipY = lerp(P.standHipY, P.crouchHipY, k);
+    var shoulderY = lerp(P.standShoulderY, P.crouchShoulderY, k);
+    var headY = lerp(P.standHeadY, P.crouchHeadY, k);
     var headR = lerp(0.17, 0.155, k);
-    var torsoW = lerp(0.48, P.crouchWidth, k);
+    var torsoW = lerp(P.standWidth, P.crouchWidth, k);
 
     var legAmp = 0.85 * (1 - 0.75 * k);
     var swing = airborne ? 0.5 : Math.sin(phase) * legAmp;
