@@ -1,3 +1,5 @@
+> **已选**：标题 1 + 长版正文（纯独白）。可直接粘贴的合并稿见 `docs/xhs-final.txt`，标题见 `docs/xhs-title.txt`。
+
 # 小红书发布包
 
 > 封面：`docs/screenshots/cover-xhs.png`（1080×1440）
