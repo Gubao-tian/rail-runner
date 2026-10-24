@@ -27,7 +27,7 @@ const ctx2d = new Proxy({}, {
     if (prop === 'canvas') return { width: 960, height: 540 };
     return (...args) => { calls.push({ fn: prop, args }); };
   },
-  set() { return true; }
+  set(_t, prop, value) { calls.push({ fn: 'set:' + prop, args: [value] }); return true; }
 });
 
 function makeEl() {
@@ -146,7 +146,7 @@ function section(t) { console.log('\n— ' + t + ' —'); }
 /* ------------------------------------------------------------------ */
 section('0. 配置整洁（V2.2 死配置清理 + 站姿高度配置化）');
 
-ok('版本号已升到 2.2.5', C.version === '2.2.5', C.version);
+ok('版本号已升到 2.2.6', C.version === '2.2.6', C.version);
 ok('timing.restartAuto 已删除', C.timing.restartAuto === undefined);
 ok('coins.magnetPull 已删除', C.coins.magnetPull === undefined);
 ok('items.dropWeight 已删除', C.items.dropWeight === undefined);
@@ -458,6 +458,73 @@ if (JP && SP && typeof proto.jumpPose === 'function') {
   ok('滑铲有双腿前伸', SP.legForward > 0, 'legForward=' + SP.legForward);
   ok('滑铲有手臂后摆', SP.armBack > 0, 'armBack=' + SP.armBack);
 }
+
+/* ------------------------------------------------------------------ */
+section('12. 道具效果：状态必须真的传给渲染层（否则玩家看不到）');
+
+const game12 = new RR.Game();
+game12.startRun();
+game12.state = 'playing';
+
+// 使用磁铁 / 双倍
+game12.effects = { shield: false, magnet: 0, double: 0 };
+game12.inventory = [{ kind: 'magnet', count: 1 }, { kind: 'double', count: 1 }, { kind: 'shield', count: 1 }];
+game12.player.state = 'run';
+game12.useSlot(0);
+ok('useSlot 后磁铁计时生效', game12.effects.magnet > 0, 'magnet=' + game12.effects.magnet);
+
+// 关键：render() 传出的 view 必须带 magnet / double 字段
+let v12 = null;
+const origDraw12 = game12.renderer.draw;
+game12.renderer.draw = function (v) { v12 = v; };
+game12.render();
+game12.renderer.draw = origDraw12;
+
+ok('render view 携带 magnet（此前缺失 → 玩家看不到效果）',
+  v12 && v12.magnet === game12.effects.magnet, v12 && 'magnet=' + v12.magnet);
+ok('render view 携带 double', v12 && v12.double !== undefined, v12 && 'double=' + v12.double);
+ok('render view 携带 shield（原有）', v12 && v12.shield !== undefined);
+
+// 磁铁吸附拖尾：磁铁生效时渲染应出现紫色描边（183,140,255）
+game12.effects.magnet = 8;
+game12.effects.double = 8;
+// 造一个处于吸附区的金币
+game12.blocks = [{
+  startDist: game12.distance, index: 0, endDist: game12.distance + 12,
+  coins: [{ x: 1.2, y: 1.05, dist: game12.distance + 3, taken: false, phase: 0 }],
+  obstacles: [], item: null
+}];
+calls.length = 0;
+const rend12 = new RR.Renderer(documentMock.getElementById('cv'));
+rend12.draw({
+  distance: game12.distance, speed: C.speed.v1 || C.speed.v0, blocks: game12.blocks,
+  player: game12.player, particles: [], time: 1.0, state: 'playing', shake: 0,
+  skin: C.skins[0], shield: false, magnet: 8, double: 0, runPhase: 0, crouch: 0, dead: false
+});
+const purple = calls.filter(c => c.fn === 'set:strokeStyle' &&
+  String(c.args[0]).indexOf('255,160,250') >= 0);
+ok('磁铁生效时金币画出紫色吸附拖尾', purple.length > 0, 'hits=' + purple.length);
+
+// 无磁铁对照：不应出现紫色拖尾
+calls.length = 0;
+rend12.draw({
+  distance: game12.distance, speed: C.speed.v1 || C.speed.v0, blocks: game12.blocks,
+  player: game12.player, particles: [], time: 1.0, state: 'playing', shake: 0,
+  skin: C.skins[0], shield: false, magnet: 0, double: 0, runPhase: 0, crouch: 0, dead: false
+});
+const purpleOff = calls.filter(c => c.fn === 'set:strokeStyle' &&
+  String(c.args[0]).indexOf('255,160,250') >= 0);
+ok('无磁铁时不画紫色拖尾', purpleOff.length === 0, 'hits=' + purpleOff.length);
+
+// 空背包按道具键：应给提示而不是静默无反应
+const game12b = new RR.Game();
+game12b.startRun();
+game12b.state = 'playing';
+game12b.inventory = [];
+let toasted = '';
+game12b.toast = function (msg) { toasted = msg; };
+game12b.useFirstItem();
+ok('空背包使用道具时给出提示（不再静默）', toasted.length > 0, 'toast=' + toasted);
 
 /* ------------------------------------------------------------------ */
 console.log('\n' + '='.repeat(56));

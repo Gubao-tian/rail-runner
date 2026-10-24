@@ -368,6 +368,8 @@
         return;
       }
     }
+    // 背包空：给明确反馈，避免玩家以为"按了没反应"
+    this.toast('背包里没有道具');
   };
 
   Game.prototype.useSlot = function (index) {
@@ -892,6 +894,8 @@
       shake: this.shake,
       skin: this.skin(),
       shield: this.effects.shield,
+      magnet: this.effects.magnet,
+      double: this.effects.double,
       runPhase: this.runPhase,
       crouch: this.player.crouch,
       dead: this.player.isDead(),

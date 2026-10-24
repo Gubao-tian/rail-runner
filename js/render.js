@@ -319,13 +319,38 @@
 
   /* ---------------- 金币 / 道具 ---------------- */
 
-  Renderer.prototype.drawCoin = function (cam, coin, time) {
+  Renderer.prototype.drawCoin = function (cam, coin, time, magnetizer) {
     var p = this.project(cam, coin.x, coin.y, coin.dist - (cam.distance || 0));
     if (!p) return;
     var r = 0.34 * p.s;
     if (r < 1.4) return;
     var spin = Math.max(0.25, Math.abs(Math.cos(time * 3 + coin.phase)));
     var ctx = this.ctx;
+
+    // 磁铁生效且本币正处于吸附区：画紫色拖尾，直指玩家（让"被吸过来"可见）
+    if (magnetizer) {
+      var mp = this.project(cam, magnetizer.x, magnetizer.y, 0 - 0);
+      if (mp) {
+        var tg = ctx.createLinearGradient(p.x, p.y, mp.x, mp.y);
+        tg.addColorStop(0, 'rgba(255,123,240,0.85)');
+        tg.addColorStop(1, 'rgba(255,123,240,0)');
+        ctx.save();
+        ctx.strokeStyle = tg;
+        ctx.lineWidth = Math.max(2, r * 0.7);
+        ctx.beginPath();
+        ctx.moveTo(p.x, p.y);
+        ctx.lineTo(mp.x, mp.y);
+        ctx.stroke();
+        // 金币外圈洋红光晕，表示"正在被吸"
+        ctx.strokeStyle = 'rgba(255,160,250,1)';
+        ctx.lineWidth = Math.max(1.4, r * 0.32);
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, r * 1.7, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+
     ctx.save();
     ctx.globalAlpha = clamp(r / 4, 0.55, 1);
 
@@ -703,6 +728,82 @@
       ctx.arc(0, (hipY + headY) * 0.5, 0.85, 0, Math.PI * 2);
       ctx.stroke();
     }
+
+    // 磁铁光环：亮洋红（夜空背景本身偏紫，纯紫不可见，故用高饱和洋红提对比）
+    //   ① 角色径向光晕 ② 贴地扩散脉冲环（磁场波）③ 旋转磁力弧
+    if (view.magnet > 0) {
+      var mt = view.time || 0;
+      var pulse = 0.75 + 0.25 * Math.sin(mt * 6);
+      var magCy = (hipY + headY) * 0.5;
+      ctx.save();
+
+      // ② 贴地扩散脉冲环：三圈不同相位的椭圆，向外扩散并淡出
+      for (var ri = 0; ri < 3; ri++) {
+        var rp = ((mt * 0.85 + ri / 3) % 1);
+        var rr = 0.45 + rp * 1.15;
+        ctx.globalAlpha = 0.75 * (1 - rp);
+        ctx.strokeStyle = '#ff7bf0';
+        ctx.lineWidth = 0.055;
+        ctx.beginPath();
+        ctx.ellipse(0, 0.02, rr, rr * 0.34, 0, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+
+      // ① 角色径向光晕
+      var mg = ctx.createRadialGradient(0, magCy, 0.1, 0, magCy, 1.15);
+      mg.addColorStop(0, 'rgba(255,123,240,0.34)');
+      mg.addColorStop(0.6, 'rgba(255,123,240,0.14)');
+      mg.addColorStop(1, 'rgba(255,123,240,0)');
+      ctx.fillStyle = mg;
+      ctx.beginPath();
+      ctx.arc(0, magCy, 1.15, 0, Math.PI * 2);
+      ctx.fill();
+
+      // 外圈脉动光环（磁铁在最外层，半径大于双倍内环）
+      ctx.strokeStyle = 'rgba(255,170,250,' + (0.95 * pulse).toFixed(3) + ')';
+      ctx.lineWidth = 0.08;
+      ctx.beginPath();
+      ctx.arc(0, magCy, 1.12 * pulse, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // ③ 三道旋转磁力弧
+      ctx.strokeStyle = 'rgba(255,235,255,1)';
+      ctx.lineWidth = 0.05;
+      for (var mi = 0; mi < 3; mi++) {
+        var a0 = mt * 3.4 + mi * (Math.PI * 2 / 3);
+        ctx.beginPath();
+        ctx.arc(0, magCy, 1.12, a0, a0 + 0.7);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    // 双倍光环：金色上升光斑，提示"分数翻倍"（内环，半径小于磁铁外环）
+    if (view.double > 0) {
+      var dt2 = view.time || 0;
+      ctx.save();
+      ctx.strokeStyle = 'rgba(255,209,102,0.9)';
+      ctx.lineWidth = 0.045;
+      ctx.beginPath();
+      ctx.arc(0, (hipY + headY) * 0.5, 0.66, 0, Math.PI * 2);
+      ctx.stroke();
+      // 三颗向上飘的金色光点
+      for (var di = 0; di < 3; di++) {
+        var ph = (dt2 * 1.6 + di / 3) % 1;
+        ctx.globalAlpha = 0.85 * (1 - ph);
+        ctx.fillStyle = '#ffd166';
+        ctx.beginPath();
+        ctx.arc(
+          Math.sin(di * 2.1 + dt2 * 2) * 0.38,
+          hipY * 0.35 + ph * (headY - hipY * 0.3),
+          0.045,
+          0, Math.PI * 2
+        );
+        ctx.fill();
+      }
+      ctx.restore();
+    }
     ctx.restore();
   };
 
@@ -798,7 +899,13 @@
       // 金币/道具先画（在障碍后面）
       for (var ci = 0; ci < block.coins.length; ci++) {
         if (block.coins[ci].taken) continue;
-        this.drawCoin(cam, block.coins[ci], view.time || 0);
+        // 磁铁生效且金币处于吸附区：传玩家位置给金币，画"被吸"的紫色拖尾
+        var coinRel = block.coins[ci].dist - view.distance;
+        var magnetizer = null;
+        if (view.magnet > 0 && view.player && coinRel < C.coins.magnetRadius && coinRel > -4) {
+          magnetizer = { x: view.player.x, y: view.player.y + 0.95 };
+        }
+        this.drawCoin(cam, block.coins[ci], view.time || 0, magnetizer);
       }
       if (block.item && !block.item.taken) {
         this.drawItem(cam, block.item, view.time || 0);
