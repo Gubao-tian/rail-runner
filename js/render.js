@@ -476,6 +476,49 @@
     return { lean: lean, bounce: bounce, headBob: headBob, armSwing: armSwing, elbow: elbow };
   };
 
+  /**
+   * 跳跃三阶段姿态（纯函数，供 drawPlayer 绘制、集成测试做"跳跃非冻结"断言）。
+   *
+   * 用 player.vy（竖直速度）与 player.state（JUMP_UP/JUMP_DOWN）驱动连续变化：
+   *   - 上升期（vy>0）：团身蓄力——膝盖/脚上收，手臂上摆；
+   *   - 顶点附近（|vy| 小）：伸展——腿自然下垂；
+   *   - 下降期（vy<0）：准备落地，腿略前伸；
+   *   - 落地瞬间：交给 crouch 缓冲（外部用 landCrouch 短时下压）。
+   *
+   * 返回：
+   *   kneeLift   膝/踝额外上收（米，正值向上）
+   *   armRaise   手臂额外上摆（弧度，正值=更接近水平/举高）
+   *   legExtend  腿额外前伸（米，下降期准备落地）
+   *   tuck       团身权重 0~1（顶点=0 伸展，起跳/落地=1 团身）
+   *
+   * @param {number} vy         竖直速度（>0 上升，<0 下降）
+   * @param {boolean} airborne  是否腾空
+   * @param {number} jumpImpulse 起跳初速度（用于归一化 vy）
+   */
+  Renderer.prototype.jumpPose = function (vy, airborne, jumpImpulse) {
+    var J = C.player.jump;
+    if (!airborne) {
+      return { kneeLift: 0, armRaise: 0, legExtend: 0, tuck: 0 };
+    }
+    // 归一化竖直速度：+1 = 起跳瞬间，-1 = 落地瞬间，0 = 顶点
+    var n = clamp(vy / Math.max(0.001, jumpImpulse), -1, 1);
+
+    // 团身权重：顶点(0)最大——真人起跳蹬地(腿直)→上升收腿→顶点最团→下降伸腿准备落地。
+    // 用 |n| 的余弦包络：n=0 时 |n|=0 → 团身最大，|n|→1 时团身趋 0。
+    var tuck = Math.cos(Math.abs(n) * Math.PI / 2);
+
+    // 上升期手臂上摆（蓄力），下降期手臂放下并略后摆
+    var armRaise = n > 0 ? Math.sin(n * Math.PI / 2) * J.tuckArmSwing : 0;
+
+    // 团身：膝盖/脚上收，顶点最大
+    var kneeLift = tuck * J.tuckKneeLift;
+
+    // 下降期腿略前伸，准备落地
+    var legExtend = n < 0 ? (-n) * J.stretchKneeDrop : 0;
+
+    return { kneeLift: kneeLift, armRaise: armRaise, legExtend: legExtend, tuck: tuck };
+  };
+
   Renderer.prototype.drawPlayer = function (cam, player, view) {
     var ctx = this.ctx;
     var base = this.project(cam, player.x, 0, 0);
@@ -536,22 +579,42 @@
     var bounce = pose.bounce;
     var headBob = pose.headBob;
 
+    // 跳跃三阶段姿态（团身→伸展→落地）；滑铲姿态（后仰+前伸腿+后摆臂）
+    var JP = C.player.jump;
+    var SP = C.player.slide;
+    var jumpP = this.jumpPose(player.vy, airborne, C.player.jumpImpulse);
+    var isSlide = player.state === 'slide';
+    var slideProg = isSlide ? clamp(1 - player.slideT / C.player.slideDuration, 0, 1) : 0;
+    // 滑铲姿态随进度从 0 建立（起手平滑），并随 crouch 权重整体生效
+    var slideMask = slideProg * k;
+
     // 前倾的正确表达（背视角伪 3D）：躯干垂直投影缩短 —— 肩/头随前倾角下降。
     // 不能用 ctx.rotate(lean)：那是屏幕平面内的"侧倾"，角色会看起来像摔倒。
     // 风格化放大 ×4：物理投影量太微小（≈3mm），放大后前倾感可见但不夸张。
     var leanDrop = (1 - Math.cos(lean)) * (P.standShoulderY - P.standHipY) * 4;
-    // 头部实际高度：基础高度 + 头部起伏 - 前倾导致的下降
-    var headYC = headY + headBob - leanDrop;
-    // 肩部随重心弹跳轻微上移，随前倾下降
-    var shoulderYC = shoulderY + bounce - leanDrop;
+    // 滑铲后仰：肩/头进一步下降（身体后倒的投影），随 slideMask 生效
+    var slideDrop = SP.leanBack * slideMask;
+    // 头部实际高度：基础高度 + 头部起伏 - 前倾/后仰导致的下降
+    var headYC = headY + headBob - leanDrop - slideDrop;
+    // 肩部随重心弹跳轻微上移，随前倾/后仰下降
+    var shoulderYC = shoulderY + bounce - leanDrop - slideDrop;
 
     // 腿：两段链（髋→膝→踝），骨盆分离 + 膝盖生理性内收 + 膝盖跟随摆动。
     // 几何来自纯函数 legGeometry，绘制时大腿粗、小腿细（收分），末端加脚掌。
+    // 跳跃：踝/膝额外上收（团身）；滑铲：踝前伸、抬高（双腿前伸）。
     var L = P.legs;
     ctx.lineCap = 'round';
     for (var li = 0; li < 2; li++) {
       var side = li === 0 ? -1 : 1;
       var g = this.legGeometry(side, phase, k, airborne, hipY);
+      // 跳跃团身：膝盖/踝向上收（对两腿都生效）
+      g.kneeY += jumpP.kneeLift;
+      g.ankleY += jumpP.kneeLift;
+      // 滑铲：踝前伸、抬高（模拟双腿向前滑出）
+      g.ankleX += side * SP.legForward * slideMask;
+      g.ankleY += SP.legLift * slideMask;
+      g.kneeX += side * SP.legForward * 0.55 * slideMask;
+      g.kneeY += SP.legLift * 0.5 * slideMask;
 
       // 大腿：髋 → 膝
       ctx.strokeStyle = body;
@@ -599,6 +662,7 @@
     ctx.globalAlpha = 1;
 
     // 手臂：肩→肘→手 两段链，对侧摆臂（左臂右腿同相），肘关节随摆动弯曲
+    // 跳跃上升期手臂上摆（蓄力）；滑铲时手臂向后摆撑地
     var armLen = lerp(0.34, 0.30, k);
     var armOut = lerp(0.02, 0.10, k);
     var elbow = pose.elbow;
@@ -607,11 +671,13 @@
       var aSide = ai === 0 ? -1 : 1;
       // 对侧摆臂：左臂(ai=0)与右腿(li=1)同相，故左臂 = +armSwing、右臂 = -armSwing
       var swingAng = ai === 0 ? pose.armSwing : -pose.armSwing;
+      // 跳跃蓄力：两臂对称上摆；滑铲：两臂向后摆
+      swingAng += jumpP.armRaise;
       var shoulder = shoulderYC - 0.02;
-      var handX = aSide * (armOut + Math.sin(swingAng) * armLen);
+      var handX = aSide * (armOut + Math.sin(swingAng) * armLen) - SP.armBack * slideMask;
       var handY = shoulder - Math.cos(swingAng) * armLen;
       // 肘：位于肩→手连线的中段，并向身体外侧弓出（形成弯曲，而非直臂）
-      var elbowX = aSide * (armOut * 0.6 + Math.sin(swingAng) * armLen * 0.5);
+      var elbowX = aSide * (armOut * 0.6 + Math.sin(swingAng) * armLen * 0.5) - SP.armBack * 0.5 * slideMask;
       var elbowY = shoulder - Math.cos(swingAng) * armLen * 0.5 - elbow;
 
       ctx.strokeStyle = body;

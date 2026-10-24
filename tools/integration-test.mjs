@@ -146,7 +146,7 @@ function section(t) { console.log('\n— ' + t + ' —'); }
 /* ------------------------------------------------------------------ */
 section('0. 配置整洁（V2.2 死配置清理 + 站姿高度配置化）');
 
-ok('版本号已升到 2.2.4', C.version === '2.2.4', C.version);
+ok('版本号已升到 2.2.5', C.version === '2.2.5', C.version);
 ok('timing.restartAuto 已删除', C.timing.restartAuto === undefined);
 ok('coins.magnetPull 已删除', C.coins.magnetPull === undefined);
 ok('items.dropWeight 已删除', C.items.dropWeight === undefined);
@@ -414,6 +414,49 @@ if (R && typeof proto.runPose === 'function') {
   const liveRot = calls.filter(c => c.fn === 'rotate');
   ok('活体渲染零旋转（前倾用投影缩短表达，不用 ctx.rotate 侧倾）', liveRot.length === 0,
     'rotates=' + liveRot.map(c => c.args[0].toFixed(2)).join(','));
+}
+
+/* ------------------------------------------------------------------ */
+section('11. 跳跃/滑铲姿态：非冻结（团身→伸展→落地 / 后仰+前伸腿+后摆臂）');
+
+const JP = C.player.jump;
+const SP = C.player.slide;
+ok('config.player.jump 存在', !!JP);
+ok('config.player.slide 存在', !!SP);
+ok('Renderer 暴露 jumpPose（跳跃姿态可被断言）', typeof proto.jumpPose === 'function');
+
+if (JP && SP && typeof proto.jumpPose === 'function') {
+  const rend = new RR.Renderer(documentMock.getElementById('cv'));
+  const imp = C.player.jumpImpulse;
+
+  // 反向验证（有牙齿）：地面态跳跃姿态应全为 0（无冻结团身）
+  const grounded = rend.jumpPose(0, false, imp);
+  ok('地面态跳跃姿态归零', grounded.kneeLift === 0 && grounded.armRaise === 0 && grounded.tuck === 0,
+    JSON.stringify(grounded));
+
+  // 上升期（vy>0）：有团身（膝盖上收）且手臂上摆
+  const rising = rend.jumpPose(imp * 0.6, true, imp);
+  ok('上升期团身（膝盖上收）', rising.kneeLift > 0.001, 'kneeLift=' + rising.kneeLift.toFixed(4));
+  ok('上升期手臂上摆（蓄力）', rising.armRaise > 0.001, 'armRaise=' + rising.armRaise.toFixed(4));
+
+  // 顶点（vy≈0）：最团（真人顶点收腿最紧）
+  const apex = rend.jumpPose(0, true, imp);
+  ok('顶点团身最紧（收腿到最高）', apex.tuck > 0.95, 'tuck=' + apex.tuck.toFixed(4));
+  ok('顶点手臂放下（无蓄力摆）', Math.abs(apex.armRaise) < 0.001, 'armRaise=' + apex.armRaise.toFixed(4));
+
+  // 下降期（vy<0）：腿略前伸（准备落地）
+  const falling = rend.jumpPose(-imp * 0.6, true, imp);
+  ok('下降期腿略前伸（准备落地）', falling.legExtend > 0.001, 'legExtend=' + falling.legExtend.toFixed(4));
+
+  // 跳跃姿态随 vy 连续变化（上升 vs 顶点 vs 下降 的团身不同）——证明非冻结
+  ok('团身随竖直速度连续变化（非冻结）',
+    rising.tuck < apex.tuck && falling.tuck < apex.tuck,
+    `rise=${rising.tuck.toFixed(3)} apex=${apex.tuck.toFixed(3)} fall=${falling.tuck.toFixed(3)}`);
+
+  // 滑铲姿态配置：有后仰、前伸腿、后摆臂
+  ok('滑铲有身体后仰', SP.leanBack > 0, 'leanBack=' + SP.leanBack);
+  ok('滑铲有双腿前伸', SP.legForward > 0, 'legForward=' + SP.legForward);
+  ok('滑铲有手臂后摆', SP.armBack > 0, 'armBack=' + SP.armBack);
 }
 
 /* ------------------------------------------------------------------ */
