@@ -1,4 +1,4 @@
-# 交接说明 · 轨道无限跑酷 V2.2.1
+# 交接说明 · 轨道无限跑酷 V2.2.2
 
 > 完整副本的交接说明：源码、文档、测试、截图、git 历史均已就位。
 > 与同级的 `runner3d/` 是**两个独立实现**（同一份 PRD，不同技术路线），文件不要混用。
@@ -10,7 +10,7 @@
 
 - 在线版：https://gubao-tian.github.io/rail-runner/
 - 仓库：https://github.com/Gubao-tian/rail-runner
-- 当前版本：v2.2.1（tag 在 git 历史里）
+- 当前版本：v2.2.2（tag 在 git 历史里）
 
 ## 怎么跑
 
@@ -35,6 +35,19 @@ python tools/validate.py             # Python 独立复核 -> docs/validation-re
 - v2.1.0：补齐 PRD §9.3 的 Python 离线校验器；`js/config.js` 增加 `analysis` 段
 - v2.2.0：修复 V2.1 交接单列出的 6 项待办（见下"已完成"）
 - v2.2.1：配置单一数据源收尾（见下"V2.2.1 已完成的待办"），纯等价替换，行为零变化
+- v2.2.2：重写角色腿部几何，消除罗圈腿（见下"V2.2.2 已完成的待办"）
+
+## V2.2.2 已完成的待办（角色腿部 / 罗圈腿）
+
+视觉缺陷：角色两腿从同一点发出、膝盖外鼓于"髋→踝连线"（膝内翻 = 罗圈腿），跑动时只甩小腿。
+
+- **根因**：`render.js` 旧腿部代码 `moveTo(0, hipY)` 让两腿共用一个髋点（无骨盆）；膝盖横向偏移 `0.10` 大于髋→踝连线导致外鼓；跑动时膝盖钉死、仅脚部横向甩 ±0.34（髋宽 0.20 的 1.7 倍）。
+- **修复**：把腿部几何抽成纯函数 `Renderer.legGeometry(side, phase, crouch, airborne, hipY)`，几何约束收归 `config.player.legs`：
+  - 髋点分离（`hipHalfWidth: 0.085`）→ 有骨盆，两腿不再共点；
+  - 膝盖略窄于髋（`kneeHalfWidth: 0.072`）→ 生理性轻微内收，膝盖不外鼓于髋→踝连线；
+  - 摆动时膝盖按 `kneeSwingFollow: 0.42` 跟随，整条腿一起动；
+  - 大腿粗 / 小腿细（`thighWidth 0.165` / `shinWidth 0.125`）形成收分，末端加脚掌（`footWidth` / `footHeight`）。
+- **新增断言**：`integration-test.mjs` 第 9 节——膝盖横向位置不得外鼓于髋→踝连线（站立、跑动多相位、下蹲、腾空四种姿态均校验），以及大腿粗于小腿、髋点分离。总数 47 → 55。
 
 ## V2.2.1 已完成的待办（配置一致性）
 
@@ -62,7 +75,7 @@ python tools/validate.py             # Python 独立复核 -> docs/validation-re
 ## 怎么验证（V2.2 新增）
 
 ```bash
-node tools/integration-test.mjs     # 47 项断言：暂停/恢复/死亡/重开 集成路径 + V2.2/V2.2.1 修复点
+node tools/integration-test.mjs     # 55 项断言：暂停/恢复/死亡/重开 集成路径 + V2.2/V2.2.1/V2.2.2 修复点
 node tools/logic-test.mjs           # 165 项断言（回归，无变化）
 ```
 
@@ -70,7 +83,7 @@ node tools/logic-test.mjs           # 165 项断言（回归，无变化）
 
 ## 剩余提升空间（审计结论，按优先级）
 
-- **P1 · 加 CI**：仓库无 `.github/`，201 项断言（集成 47 + 逻辑 165）目前纯手动跑。加 GitHub Actions 在 push/PR 自动跑，成本极低。
+- **P1 · 加 CI**：仓库无 `.github/`，220 项断言（集成 55 + 逻辑 165）目前纯手动跑。加 GitHub Actions 在 push/PR 自动跑，成本极低。
 - **P1 · 自动化视觉回归**：历史上 z 轴渲染方向反了那个 bug，逻辑自检测不出、只有截图能发现；死亡姿态同样只验证了"变换被调用"，从未被真正看过。建议建 headless 截图基线做差异比对。
 - **P2 · PRD 既定未做**：R-21 结算页分享图、R-22 每日固定种子挑战。
 - **P3 · 移动端真机帧率实测**（README 已知限制，目前只做了 DPR 限制与低画质档）。

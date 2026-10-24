@@ -146,7 +146,7 @@ function section(t) { console.log('\n— ' + t + ' —'); }
 /* ------------------------------------------------------------------ */
 section('0. 配置整洁（V2.2 死配置清理 + 站姿高度配置化）');
 
-ok('版本号已升到 2.2.1', C.version === '2.2.1', C.version);
+ok('版本号已升到 2.2.2', C.version === '2.2.2', C.version);
 ok('timing.restartAuto 已删除', C.timing.restartAuto === undefined);
 ok('coins.magnetPull 已删除', C.coins.magnetPull === undefined);
 ok('items.dropWeight 已删除', C.items.dropWeight === undefined);
@@ -305,6 +305,55 @@ for (let i = 0; i < 200 && !hitBaseY; i++) {
 }
 C.coins.baseY = baseY0;
 ok('改 C.coins.baseY 后生成的金币高度跟随（证明已接线而非巧合）', hitBaseY);
+
+/* ------------------------------------------------------------------ */
+section('9. 角色腿部几何：不得是罗圈腿（膝盖不得外鼓于髋→踝连线）');
+
+const L = C.player.legs;
+const proto = RR.Renderer.prototype;
+
+// 膝盖相对"髋→踝连线"的外鼓量（>0 = 罗圈腿）。side 用于把坐标换成"向外为正"。
+function bowOf(hipX, kneeX, ankleX, hipY, kneeY, ankleY, side) {
+  const t = (hipY - kneeY) / (hipY - ankleY);
+  const lineLat = hipX * side + (ankleX * side - hipX * side) * t;
+  return (kneeX * side) - lineLat;
+}
+
+// 反向验证：这条断言对"旧几何"（髋 0 / 膝 ±0.10 / 踝 ±0.10）确实会报警——有牙齿
+const oldBow = bowOf(0, 0.10, 0.10, 0.72, 0.4325, 0.03, 1);
+ok('断言对旧几何确实报警（有牙齿）', oldBow > 0.01, 'oldBow=' + oldBow.toFixed(4));
+
+ok('config.player.legs 存在', !!L);
+ok('Renderer 暴露 legGeometry（几何可被断言）', typeof proto.legGeometry === 'function');
+
+if (L && typeof proto.legGeometry === 'function') {
+  ok('有骨盆宽度（两腿髋点分离，不从同一点发出）', L.hipHalfWidth > 0.05);
+  ok('膝盖不比髋更靠外（生理性略内收）', L.kneeHalfWidth < L.hipHalfWidth);
+
+  let maxBow = -Infinity;
+  const rend = new RR.Renderer(documentMock.getElementById('cv'));
+  for (let ci = 0; ci <= 10; ci++) {
+    const crouch = ci / 10;
+    for (let pi = 0; pi < 24; pi++) {
+      const phase = (pi / 24) * Math.PI * 2;
+      for (const air of [false, true]) {
+        for (const side of [-1, 1]) {
+          const g = rend.legGeometry(side, phase, crouch, air, 0.72);
+          // 允许下蹲时按 crouchKneeOut 有意外展（深蹲膝盖本就略开）
+          const bow = bowOf(g.hipX, g.kneeX, g.ankleX, g.hipY, g.kneeY, g.ankleY, side)
+            - L.crouchKneeOut * crouch;
+          if (bow > maxBow) maxBow = bow;
+        }
+      }
+    }
+  }
+  ok('全相位/全蹲姿下膝盖都不外鼓（无罗圈腿）', maxBow <= 1e-9, 'maxBow=' + maxBow.toFixed(4));
+
+  // 摆动幅度不应远大于髋宽（否则跑起来两腿外张成 O 形）
+  ok('跑动摆幅不超过髋宽的 1.5 倍', L.runSwingX <= L.hipHalfWidth * 2 * 1.5,
+    `runSwingX=${L.runSwingX}, hipWidth=${(L.hipHalfWidth * 2).toFixed(3)}`);
+  ok('膝盖跟随摆动（不再只甩小腿）', L.kneeSwingFollow > 0.2);
+}
 
 /* ------------------------------------------------------------------ */
 console.log('\n' + '='.repeat(56));

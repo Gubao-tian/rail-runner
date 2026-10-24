@@ -391,6 +391,46 @@
 
   /* ---------------- 角色 ---------------- */
 
+  /**
+   * 一条腿的 髋 / 膝 / 踝 三点（米，角色本地坐标，y 向上）。
+   * 抽成纯函数：drawPlayer 用它绘制，集成测试用它做"非罗圈腿"的几何断言。
+   *
+   * 几何约束（见 config.player.legs）：
+   *   - 髋点分离（有骨盆），两腿不从同一点发出；
+   *   - 膝盖略窄于髋，不向外鼓出"髋→踝连线"（外鼓即为罗圈腿）；
+   *   - 摆动时膝盖按 kneeSwingFollow 跟随，整条腿一起动。
+   *
+   * @param {number} side      -1 左腿 / +1 右腿
+   * @param {number} phase     跑动相位（弧度）
+   * @param {number} crouch    蹲姿权重 0~1
+   * @param {boolean} airborne 腾空
+   * @param {number} hipY      当前髋部高度（已含蹲姿过渡）
+   */
+  Renderer.prototype.legGeometry = function (side, phase, crouch, airborne, hipY) {
+    var L = C.player.legs;
+    var k = clamp(crouch, 0, 1);
+    var runMask = 1 - k;
+    var swingX, lift;
+    if (airborne) {
+      swingX = side < 0 ? L.airSwingA : L.airSwingB;
+      lift = side < 0 ? L.airLiftA : L.airLiftB;
+    } else {
+      var ph = side < 0 ? phase : phase + Math.PI;
+      swingX = Math.sin(ph) * L.runSwingX * runMask;
+      lift = Math.max(0, Math.sin(ph)) * L.runSwingLift * runMask;
+    }
+    var ankleX = side * L.ankleHalfWidth + swingX;
+    var ankleY = L.ankleY + lift;
+    return {
+      hipX: side * L.hipHalfWidth,
+      hipY: hipY,
+      kneeX: side * (L.kneeHalfWidth + L.crouchKneeOut * k) + swingX * L.kneeSwingFollow,
+      kneeY: hipY - (hipY - ankleY) * L.kneeHeightRatio,
+      ankleX: ankleX,
+      ankleY: ankleY
+    };
+  };
+
   Renderer.prototype.drawPlayer = function (cam, player, view) {
     var ctx = this.ctx;
     var base = this.project(cam, player.x, 0, 0);
@@ -442,27 +482,42 @@
     var headR = lerp(0.17, 0.155, k);
     var torsoW = lerp(P.standWidth, P.crouchWidth, k);
 
-    var legAmp = 0.85 * (1 - 0.75 * k);
-    var swing = airborne ? 0.5 : Math.sin(phase) * legAmp;
-    var swing2 = airborne ? -0.3 : Math.sin(phase + Math.PI) * legAmp;
-
-    // 腿：站立时前后摆；蹲下时髋 → 膝 → 脚 折起来（膝盖外展）
-    ctx.strokeStyle = body;
-    ctx.lineWidth = lerp(0.16, 0.14, k);
+    // 腿：两段链（髋→膝→踝），骨盆分离 + 膝盖生理性内收 + 膝盖跟随摆动。
+    // 几何来自纯函数 legGeometry，绘制时大腿粗、小腿细（收分），末端加脚掌。
+    var L = P.legs;
     ctx.lineCap = 'round';
-    ctx.beginPath();
     for (var li = 0; li < 2; li++) {
       var side = li === 0 ? -1 : 1;
-      var ph = li === 0 ? swing : swing2;
-      var footX = side * (0.10 + 0.09 * k) + Math.sin(ph) * 0.34 * (1 - k);
-      var footY = 0.03 + Math.max(0, Math.sin(ph)) * 0.10 * (1 - k);
-      var kneeX = side * (0.10 + 0.16 * k);
-      var kneeY = (hipY + footY) * 0.55 + 0.02;
-      ctx.moveTo(0, hipY);
-      ctx.lineTo(kneeX, kneeY);
-      ctx.lineTo(footX, footY);
+      var g = this.legGeometry(side, phase, k, airborne, hipY);
+
+      // 大腿：髋 → 膝
+      ctx.strokeStyle = body;
+      ctx.lineWidth = lerp(L.thighWidth, L.thighWidth * 0.9, k);
+      ctx.beginPath();
+      ctx.moveTo(g.hipX, g.hipY);
+      ctx.lineTo(g.kneeX, g.kneeY);
+      ctx.stroke();
+
+      // 小腿：膝 → 踝
+      ctx.lineWidth = lerp(L.shinWidth, L.shinWidth * 0.9, k);
+      ctx.beginPath();
+      ctx.moveTo(g.kneeX, g.kneeY);
+      ctx.lineTo(g.ankleX, g.ankleY);
+      ctx.stroke();
+
+      // 脚掌：从踝向前伸出一小块
+      ctx.fillStyle = accent;
+      var footY = g.ankleY - L.footDrop;
+      ctx.beginPath();
+      ctx.ellipse(
+        g.ankleX,
+        footY,
+        L.footWidth * 0.5,
+        L.footHeight * 0.5,
+        0, 0, Math.PI * 2
+      );
+      ctx.fill();
     }
-    ctx.stroke();
 
     // 躯干：变矮、变宽，但始终竖直
     ctx.fillStyle = body;

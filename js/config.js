@@ -9,7 +9,7 @@
   'use strict';
 
   var CONFIG = {
-    version: '2.2.1',
+    version: '2.2.2',
 
     /* ---------------- 轨道与地块 ---------------- */
     lanes: 3,              // 三轨，禁止 1<->3 直跳
@@ -86,7 +86,40 @@
       standHipY: 0.72,
       standShoulderY: 1.34,
       standHeadY: 1.56,
-      standWidth: 0.48
+      standWidth: 0.48,
+
+      /* ---------------- 腿部骨架（米） ----------------
+       * 髋 → 膝 → 踝 两段链。关键约束：
+       *   1) hipHalfWidth > 0 —— 有骨盆，两腿不从同一点发出；
+       *   2) kneeHalfWidth 略窄于 hipHalfWidth —— 生理性轻微内收，
+       *      膝盖不得外鼓于"髋→踝连线"，否则就是罗圈腿（膝内翻）；
+       *   3) kneeSwingFollow > 0 —— 摆动时膝盖跟随，不再只甩小腿。
+       */
+      legs: {
+        hipHalfWidth: 0.085,      // 髋关节半宽（骨盆）
+        kneeHalfWidth: 0.072,     // 膝盖横向位置（略窄于髋 = 正常腿）
+        ankleHalfWidth: 0.078,    // 踝关节横向位置
+        ankleY: 0.03,             // 踝关节离地高度
+        kneeHeightRatio: 0.42,    // 膝在 髋→踝 连线上的下落占比
+
+        thighWidth: 0.165,        // 大腿描边宽（比小腿粗，形成收分）
+        shinWidth: 0.125,         // 小腿描边宽
+
+        runSwingX: 0.15,          // 跑动横向摆幅（原 0.34 过大，导致外张成 O 形）
+        runSwingLift: 0.13,       // 跑动抬脚高度
+        kneeSwingFollow: 0.42,    // 膝盖跟随摆动的比例
+
+        crouchKneeOut: 0.05,      // 下蹲时膝盖外展（深蹲本就略开，原 0.16 过大）
+
+        airSwingA: 0.17,          // 腾空时两腿姿态
+        airSwingB: -0.11,
+        airLiftA: 0.10,
+        airLiftB: 0.17,
+
+        footWidth: 0.12,          // 脚掌（从后方看到的宽度）
+        footHeight: 0.055,
+        footDrop: 0.03            // 脚掌相对踝关节下沉量
+      }
     },
 
     /* ---------------- 障碍尺寸（形状区分，色盲友好） ---------------- */
