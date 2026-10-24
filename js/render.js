@@ -431,6 +431,51 @@
     };
   };
 
+  /**
+   * 跑动姿态参数（纯函数，供 drawPlayer 绘制、集成测试做"非机械化"断言）。
+   *
+   * 返回：
+   *   lean        躯干前倾（弧度，速度越快越前倾）
+   *   bounce      重心上下偏移（米，步频弹跳）
+   *   headBob     头部上下偏移（米，略滞后于身体）
+   *   armSwing    左臂摆动角（弧度，右臂反相）
+   *   elbow       肘关节横向弯曲量（米，0=僵直）
+   *
+   * @param {number} phase    跑动相位（弧度）
+   * @param {number} speed    当前速度（用于前倾随速度增强）
+   * @param {number} crouch   蹲姿权重 0~1
+   * @param {boolean} airborne 腾空
+   */
+  Renderer.prototype.runPose = function (phase, speed, crouch, airborne) {
+    var R = C.player.run;
+    var k = clamp(crouch, 0, 1);
+    var runMask = 1 - k;
+    var spdRatio = clamp((speed - C.speed.v0) / (C.speed.vMax - C.speed.v0), 0, 1);
+
+    // 前倾：基础幅度 × 速度加成，蹲下时保持直立（不叠加前倾）
+    var lean = R.lean * (0.4 + 0.6 * spdRatio) * runMask;
+
+    // 重心弹跳：步频正弦，下蹲/腾空时收敛
+    var bounce = Math.sin(phase * 2) * R.bounceAmp * runMask;
+    if (airborne) bounce = R.bounceAmp * 0.4;
+
+    // 头部起伏：略滞后于身体（相位差 0.5），幅度更小
+    var headBob = Math.sin(phase * 2 + R.armPhaseOffset) * R.headBobAmp * runMask;
+
+    // 手臂：左臂摆动角，右臂反相；腾空时固定到收臂姿态
+    var armSwing;
+    if (airborne) {
+      armSwing = 0.45;
+    } else {
+      armSwing = Math.sin(phase + Math.PI) * R.armSwingAmp * runMask;
+    }
+
+    // 肘弯曲：随摆动角反向（前摆时肘收起、后摆时展开），蹲下时手臂更贴身
+    var elbow = Math.abs(Math.cos(phase)) * R.armBend * runMask + R.armBend * 0.3 * k;
+
+    return { lean: lean, bounce: bounce, headBob: headBob, armSwing: armSwing, elbow: elbow };
+  };
+
   Renderer.prototype.drawPlayer = function (cam, player, view) {
     var ctx = this.ctx;
     var base = this.project(cam, player.x, 0, 0);
@@ -442,16 +487,18 @@
     rawCrouch = clamp(rawCrouch, 0, 1);
     var k = rawCrouch * rawCrouch * (3 - 2 * rawCrouch);
 
-    // 影子：下蹲时更宽、更扁
+    // 影子：下蹲时更宽、更扁；腾空时随离地高度收缩并变淡（视觉反馈"离地多高"）
     ctx.save();
-    var shadowSquash = clamp(1 - player.y * 0.35, 0.4, 1);
-    ctx.globalAlpha = 0.45 * shadowSquash;
+    var R = C.player.run;
+    var shadowSquash = clamp(1 - player.y * R.shadowScale, 0.4, 1);
+    var shadowAlpha = clamp(1 - player.y * R.shadowLiftFade, 0.35, 1);
+    ctx.globalAlpha = 0.45 * shadowSquash * shadowAlpha;
     ctx.fillStyle = '#000';
     ctx.beginPath();
     ctx.ellipse(
       base.x,
       base.y,
-      (0.5 + 0.16 * k) * s,
+      (0.5 + 0.16 * k) * s * shadowSquash,
       (0.16 + 0.05 * k) * s * shadowSquash,
       0, 0, Math.PI * 2
     );
@@ -481,6 +528,18 @@
     var headY = lerp(P.standHeadY, P.crouchHeadY, k);
     var headR = lerp(0.17, 0.155, k);
     var torsoW = lerp(P.standWidth, P.crouchWidth, k);
+
+    // 跑动姿态（前倾/弹跳/手臂摆）：让角色脱离刚性小人
+    var speed = view.speed || C.speed.v0;
+    var pose = this.runPose(phase, speed, k, airborne);
+    var lean = pose.lean;
+    var bounce = pose.bounce;
+    var headBob = pose.headBob;
+
+    // 头部实际高度：基础高度 + 头部起伏（头部跟随弹跳，略滞后）
+    var headYC = headY + headBob;
+    // 肩部随重心弹跳轻微上移
+    var shoulderYC = shoulderY + bounce;
 
     // 腿：两段链（髋→膝→踝），骨盆分离 + 膝盖生理性内收 + 膝盖跟随摆动。
     // 几何来自纯函数 legGeometry，绘制时大腿粗、小腿细（收分），末端加脚掌。
@@ -519,9 +578,13 @@
       ctx.fill();
     }
 
-    // 躯干：变矮、变宽，但始终竖直
+    // 躯干：变矮、变宽，跑动时绕髋部前倾（前倾 + 弹跳让身体有重量感）
+    ctx.save();
+    ctx.translate(0, hipY);
+    ctx.rotate(lean);
+    ctx.translate(0, -hipY);
     ctx.fillStyle = body;
-    var torsoTop = shoulderY + 0.06;
+    var torsoTop = shoulderYC + 0.06;
     var torsoBottom = hipY - 0.06;
     var torsoH = torsoTop - torsoBottom;
     roundRectPath(ctx, -torsoW / 2, torsoBottom, torsoW, torsoH, lerp(0.18, 0.15, k));
@@ -534,26 +597,37 @@
     roundRectPath(ctx, -torsoW * 0.27, torsoTop - chestH - 0.05, torsoW * 0.54, chestH, 0.1);
     ctx.fill();
     ctx.globalAlpha = 1;
+    ctx.restore();
 
-    // 手臂：贴着身体两侧下垂，蹲下时更贴身
-    ctx.strokeStyle = body;
-    ctx.lineWidth = 0.13;
-    ctx.beginPath();
-    var armAmp = 0.9 * (1 - 0.55 * k);
-    var armSwing = airborne ? -0.6 : Math.sin(phase + Math.PI) * armAmp;
-    var armSwing2 = airborne ? 0.7 : Math.sin(phase) * armAmp;
+    // 手臂：肩→肘→手 两段链，对侧摆臂（左臂右腿同相），肘关节随摆动弯曲
     var armLen = lerp(0.34, 0.30, k);
     var armOut = lerp(0.02, 0.10, k);
-    ctx.moveTo(0, shoulderY - 0.02);
-    ctx.lineTo(Math.sin(armSwing) * armLen - armOut, shoulderY - 0.02 - Math.cos(armSwing) * armLen);
-    ctx.moveTo(0, shoulderY - 0.02);
-    ctx.lineTo(Math.sin(armSwing2) * armLen + armOut, shoulderY - 0.02 - Math.cos(armSwing2) * armLen);
-    ctx.stroke();
+    var elbow = pose.elbow;
+    ctx.lineCap = 'round';
+    for (var ai = 0; ai < 2; ai++) {
+      var aSide = ai === 0 ? -1 : 1;
+      // 对侧摆臂：左臂(ai=0)与右腿(li=1)同相，故左臂 = +armSwing、右臂 = -armSwing
+      var swingAng = ai === 0 ? pose.armSwing : -pose.armSwing;
+      var shoulder = shoulderYC - 0.02;
+      var handX = aSide * (armOut + Math.sin(swingAng) * armLen);
+      var handY = shoulder - Math.cos(swingAng) * armLen;
+      // 肘：位于肩→手连线的中段，并向身体外侧弓出（形成弯曲，而非直臂）
+      var elbowX = aSide * (armOut * 0.6 + Math.sin(swingAng) * armLen * 0.5);
+      var elbowY = shoulder - Math.cos(swingAng) * armLen * 0.5 - elbow;
 
-    // 头
+      ctx.strokeStyle = body;
+      ctx.lineWidth = 0.13;
+      ctx.beginPath();
+      ctx.moveTo(0, shoulder);
+      ctx.lineTo(elbowX, elbowY);
+      ctx.lineTo(handX, handY);
+      ctx.stroke();
+    }
+
+    // 头：随重心起伏轻微浮动
     ctx.fillStyle = accent;
     ctx.beginPath();
-    ctx.arc(0, headY, headR, 0, Math.PI * 2);
+    ctx.arc(0, headYC, headR, 0, Math.PI * 2);
     ctx.fill();
 
     // 护盾光圈：跟着重心走

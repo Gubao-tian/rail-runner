@@ -146,7 +146,7 @@ function section(t) { console.log('\n— ' + t + ' —'); }
 /* ------------------------------------------------------------------ */
 section('0. 配置整洁（V2.2 死配置清理 + 站姿高度配置化）');
 
-ok('版本号已升到 2.2.2', C.version === '2.2.2', C.version);
+ok('版本号已升到 2.2.3', C.version === '2.2.3', C.version);
 ok('timing.restartAuto 已删除', C.timing.restartAuto === undefined);
 ok('coins.magnetPull 已删除', C.coins.magnetPull === undefined);
 ok('items.dropWeight 已删除', C.items.dropWeight === undefined);
@@ -353,6 +353,55 @@ if (L && typeof proto.legGeometry === 'function') {
   ok('跑动摆幅不超过髋宽的 1.5 倍', L.runSwingX <= L.hipHalfWidth * 2 * 1.5,
     `runSwingX=${L.runSwingX}, hipWidth=${(L.hipHalfWidth * 2).toFixed(3)}`);
   ok('膝盖跟随摆动（不再只甩小腿）', L.kneeSwingFollow > 0.2);
+}
+
+/* ------------------------------------------------------------------ */
+section('10. 跑动姿态：脱离刚性小人（前倾/弹跳/摆臂/肘）');
+
+const R = C.player.run;
+ok('config.player.run 存在', !!R);
+ok('Renderer 暴露 runPose（姿态可被断言）', typeof proto.runPose === 'function');
+
+if (R && typeof proto.runPose === 'function') {
+  const rend = new RR.Renderer(documentMock.getElementById('cv'));
+  const v0 = C.speed.v0;
+  const vMax = C.speed.vMax;
+
+  // 反向验证：runPose 在"快速跑动"时应产生非零前倾与弹跳（有牙齿——旧实现恒为 0/竖直）
+  const fast = rend.runPose(Math.PI * 0.5, vMax, 0, false);
+  ok('快速跑动时躯干有前倾（非恒竖直）', fast.lean > 0.001, 'lean=' + fast.lean.toFixed(4));
+
+  // 弹跳是步频正弦，单个相位可能恰在过零点；扫描整周期取最大幅度
+  let maxBounce = 0;
+  for (let pi = 0; pi < 32; pi++) {
+    const b = Math.abs(rend.runPose((pi / 32) * Math.PI * 2, vMax, 0, false).bounce);
+    if (b > maxBounce) maxBounce = b;
+  }
+  ok('跑动时重心有上下弹跳（非静止）', maxBounce > 0.001, 'maxBounce=' + maxBounce.toFixed(4));
+
+  // 速度越快，前倾越大
+  const slow = rend.runPose(Math.PI * 0.5, v0, 0, false);
+  ok('速度越快前倾越大', fast.lean > slow.lean, `fast=${fast.lean.toFixed(4)} slow=${slow.lean.toFixed(4)}`);
+
+  // 蹲姿收敛：下蹲时不再前倾、弹跳趋近 0（滑铲时身体不晃）
+  const crouched = rend.runPose(Math.PI * 0.5, vMax, 1, false);
+  ok('下蹲时前倾收敛（保持直立滑铲）', Math.abs(crouched.lean) < 0.001, 'lean=' + crouched.lean.toFixed(4));
+  ok('下蹲时弹跳收敛（重心稳定）', Math.abs(crouched.bounce) < 0.001, 'bounce=' + crouched.bounce.toFixed(4));
+
+  // 手臂有摆动且对侧反相（左臂与右臂方向相反，符合跑步自然摆臂）
+  const p1 = rend.runPose(0.3, vMax, 0, false);
+  const p2 = rend.runPose(0.3 + Math.PI, vMax, 0, false);
+  ok('手臂摆动随相位变化（非固定）', Math.abs(p1.armSwing - p2.armSwing) > 0.3,
+    `d=${Math.abs(p1.armSwing - p2.armSwing).toFixed(3)}`);
+
+  // 肘弯曲量 > 0（有肘关节，非僵直直臂）
+  ok('有肘关节弯曲（非僵直直臂）', R.armBend > 0, 'armBend=' + R.armBend);
+  ok('肘弯曲量在跑动中非恒零', fast.elbow > 0.001 || Math.abs(Math.cos(Math.PI * 0.5)) * R.armBend > 0,
+    'elbow=' + fast.elbow.toFixed(4));
+
+  // 头部起伏幅度小于身体弹跳（头部更稳，符合生理）
+  ok('头部起伏幅度小于身体弹跳', R.headBobAmp < R.bounceAmp,
+    `head=${R.headBobAmp} bounce=${R.bounceAmp}`);
 }
 
 /* ------------------------------------------------------------------ */

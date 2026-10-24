@@ -1,4 +1,4 @@
-# 交接说明 · 轨道无限跑酷 V2.2.2
+# 交接说明 · 轨道无限跑酷 V2.2.3
 
 > 完整副本的交接说明：源码、文档、测试、截图、git 历史均已就位。
 > 与同级的 `runner3d/` 是**两个独立实现**（同一份 PRD，不同技术路线），文件不要混用。
@@ -10,7 +10,7 @@
 
 - 在线版：https://gubao-tian.github.io/rail-runner/
 - 仓库：https://github.com/Gubao-tian/rail-runner
-- 当前版本：v2.2.2（tag 在 git 历史里）
+- 当前版本：v2.2.3（tag 在 git 历史里）
 
 ## 怎么跑
 
@@ -36,6 +36,18 @@ python tools/validate.py             # Python 独立复核 -> docs/validation-re
 - v2.2.0：修复 V2.1 交接单列出的 6 项待办（见下"已完成"）
 - v2.2.1：配置单一数据源收尾（见下"V2.2.1 已完成的待办"），纯等价替换，行为零变化
 - v2.2.2：重写角色腿部几何，消除罗圈腿（见下"V2.2.2 已完成的待办"）
+- v2.2.3：跑动姿态增强——躯干前倾、重心弹跳、头部起伏、手臂两段链摆臂（见下"V2.2.3 已完成的待办"）
+
+## V2.2.3 已完成的待办（角色跑动姿态 / 去机械化）
+
+视觉缺陷：角色像刚性小人——躯干恒竖直、手臂直臂硬摆、头钉死、阴影无离地反馈。
+
+- **新增纯函数 `Renderer.runPose(phase, speed, crouch, airborne)`**：把姿态参数（前倾/弹跳/摆臂/肘弯曲）抽成可测试纯函数，约束收归 `config.player.run`（8 个键：`lean` / `bounceAmp` / `headBobAmp` / `armSwingAmp` / `armBend` / `armPhaseOffset` / `shadowScale` / `shadowLiftFade`）。
+- **躯干前倾 + 弹跳**：绕髋部 `rotate(lean)` 前倾（速度越快前倾越大），重心按步频 `sin(2·phase)` 上下弹跳，让身体有重量感。
+- **头部起伏**：头随重心轻微浮动（幅度小于身体、相位略滞后），不再钉死。
+- **手臂两段链**：肩→肘→手，肘关节随摆动弯曲（前摆收肘、后摆展肘），对侧摆臂（左臂与右腿同相），替代原来的直臂正弦摆。
+- **阴影反馈**：腾空时阴影随离地高度收缩并变淡（`shadowScale` / `shadowLiftFade`），直观传达"离地多高"。
+- **新增断言**：`integration-test.mjs` 第 10 节——前倾非零且随速度增大、弹跳非零（整周期扫描）、蹲姿收敛、手臂摆随相位变化、有肘关节、头部起伏小于身体弹跳。总数 55 → 66。
 
 ## V2.2.2 已完成的待办（角色腿部 / 罗圈腿）
 
@@ -75,7 +87,7 @@ python tools/validate.py             # Python 独立复核 -> docs/validation-re
 ## 怎么验证（V2.2 新增）
 
 ```bash
-node tools/integration-test.mjs     # 55 项断言：暂停/恢复/死亡/重开 集成路径 + V2.2/V2.2.1/V2.2.2 修复点
+node tools/integration-test.mjs     # 66 项断言：暂停/恢复/死亡/重开 集成路径 + V2.2/V2.2.1/V2.2.2/V2.2.3 修复点
 node tools/logic-test.mjs           # 165 项断言（回归，无变化）
 ```
 
@@ -83,7 +95,7 @@ node tools/logic-test.mjs           # 165 项断言（回归，无变化）
 
 ## 剩余提升空间（审计结论，按优先级）
 
-- **P1 · 加 CI**：仓库无 `.github/`，220 项断言（集成 55 + 逻辑 165）目前纯手动跑。加 GitHub Actions 在 push/PR 自动跑，成本极低。
+- **P1 · 加 CI**：仓库无 `.github/`，231 项断言（集成 66 + 逻辑 165）目前纯手动跑。加 GitHub Actions 在 push/PR 自动跑，成本极低。
 - **P1 · 自动化视觉回归**：历史上 z 轴渲染方向反了那个 bug，逻辑自检测不出、只有截图能发现；死亡姿态同样只验证了"变换被调用"，从未被真正看过。建议建 headless 截图基线做差异比对。
 - **P2 · PRD 既定未做**：R-21 结算页分享图、R-22 每日固定种子挑战。
 - **P3 · 移动端真机帧率实测**（README 已知限制，目前只做了 DPR 限制与低画质档）。
