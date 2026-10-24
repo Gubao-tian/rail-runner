@@ -536,10 +536,14 @@
     var bounce = pose.bounce;
     var headBob = pose.headBob;
 
-    // 头部实际高度：基础高度 + 头部起伏（头部跟随弹跳，略滞后）
-    var headYC = headY + headBob;
-    // 肩部随重心弹跳轻微上移
-    var shoulderYC = shoulderY + bounce;
+    // 前倾的正确表达（背视角伪 3D）：躯干垂直投影缩短 —— 肩/头随前倾角下降。
+    // 不能用 ctx.rotate(lean)：那是屏幕平面内的"侧倾"，角色会看起来像摔倒。
+    // 风格化放大 ×4：物理投影量太微小（≈3mm），放大后前倾感可见但不夸张。
+    var leanDrop = (1 - Math.cos(lean)) * (P.standShoulderY - P.standHipY) * 4;
+    // 头部实际高度：基础高度 + 头部起伏 - 前倾导致的下降
+    var headYC = headY + headBob - leanDrop;
+    // 肩部随重心弹跳轻微上移，随前倾下降
+    var shoulderYC = shoulderY + bounce - leanDrop;
 
     // 腿：两段链（髋→膝→踝），骨盆分离 + 膝盖生理性内收 + 膝盖跟随摆动。
     // 几何来自纯函数 legGeometry，绘制时大腿粗、小腿细（收分），末端加脚掌。
@@ -578,11 +582,7 @@
       ctx.fill();
     }
 
-    // 躯干：变矮、变宽，跑动时绕髋部前倾（前倾 + 弹跳让身体有重量感）
-    ctx.save();
-    ctx.translate(0, hipY);
-    ctx.rotate(lean);
-    ctx.translate(0, -hipY);
+    // 躯干：变矮、变宽；前倾表现为躯干投影缩短（肩部下降），保持竖直不侧倾
     ctx.fillStyle = body;
     var torsoTop = shoulderYC + 0.06;
     var torsoBottom = hipY - 0.06;
@@ -597,7 +597,6 @@
     roundRectPath(ctx, -torsoW * 0.27, torsoTop - chestH - 0.05, torsoW * 0.54, chestH, 0.1);
     ctx.fill();
     ctx.globalAlpha = 1;
-    ctx.restore();
 
     // 手臂：肩→肘→手 两段链，对侧摆臂（左臂右腿同相），肘关节随摆动弯曲
     var armLen = lerp(0.34, 0.30, k);

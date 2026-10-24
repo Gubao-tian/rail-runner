@@ -146,7 +146,7 @@ function section(t) { console.log('\n— ' + t + ' —'); }
 /* ------------------------------------------------------------------ */
 section('0. 配置整洁（V2.2 死配置清理 + 站姿高度配置化）');
 
-ok('版本号已升到 2.2.3', C.version === '2.2.3', C.version);
+ok('版本号已升到 2.2.4', C.version === '2.2.4', C.version);
 ok('timing.restartAuto 已删除', C.timing.restartAuto === undefined);
 ok('coins.magnetPull 已删除', C.coins.magnetPull === undefined);
 ok('items.dropWeight 已删除', C.items.dropWeight === undefined);
@@ -402,6 +402,18 @@ if (R && typeof proto.runPose === 'function') {
   // 头部起伏幅度小于身体弹跳（头部更稳，符合生理）
   ok('头部起伏幅度小于身体弹跳', R.headBobAmp < R.bounceAmp,
     `head=${R.headBobAmp} bounce=${R.bounceAmp}`);
+
+  // 关键回归防线：活体渲染不得调用 ctx.rotate（除死亡扑街外）。
+  // V2.2.3 曾误用 rotate 表达"前倾"——背视角下那是屏幕平面内的侧倾，角色看起来像摔倒。
+  calls.length = 0;
+  rend.draw({
+    distance: 0, speed: vMax, blocks: [], player: game.player, particles: [],
+    time: 0, state: 'playing', shake: 0, skin: C.skins[0], shield: false,
+    runPhase: 1.2, crouch: 0, dead: false
+  });
+  const liveRot = calls.filter(c => c.fn === 'rotate');
+  ok('活体渲染零旋转（前倾用投影缩短表达，不用 ctx.rotate 侧倾）', liveRot.length === 0,
+    'rotates=' + liveRot.map(c => c.args[0].toFixed(2)).join(','));
 }
 
 /* ------------------------------------------------------------------ */
