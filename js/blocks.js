@@ -42,7 +42,7 @@
       lane: lane,
       x: laneX(lane),
       dist: block.startDist + z,
-      y: y == null ? 1.05 : y,
+      y: y == null ? C.coins.baseY : y,
       taken: false,
       phase: (block.index * 7 + block.coins.length * 3) % 6.283
     });
@@ -77,7 +77,7 @@
     var lane = 1;
     var n = Math.floor((C.blockLength - 6) / C.coins.spacing) + 1;
     for (var i = 0; i < n; i++) {
-      pushCoin(block, lane, 4 + i * C.coins.spacing, 1.05);
+      pushCoin(block, lane, 4 + i * C.coins.spacing, C.coins.baseY);
     }
   }
 
@@ -86,12 +86,12 @@
     block.obstacles.push(makeObstacle('low', lane, C.blockLength * 0.5));
     block.safeLanes = [0, 1, 2].filter(function (l) { return l !== lane; });
     // 障碍上方 3 枚金币：跳对了顺手吃掉（风险-回报）
-    pushCoin(block, lane, C.blockLength * 0.5 - 2.2, 1.45);
-    pushCoin(block, lane, C.blockLength * 0.5, 1.62);
-    pushCoin(block, lane, C.blockLength * 0.5 + 2.2, 1.45);
+    pushCoin(block, lane, C.blockLength * 0.5 - C.coins.arcSpread, C.coins.arcY);
+    pushCoin(block, lane, C.blockLength * 0.5, C.coins.peakY);
+    pushCoin(block, lane, C.blockLength * 0.5 + C.coins.arcSpread, C.coins.arcY);
     // 旁边安全轨的直线金币（新手区保证至少 2 条安全轨）
     var safe = rng.pick(block.safeLanes);
-    for (var i = 0; i < 3; i++) pushCoin(block, safe, C.blockLength * 0.62 + i * C.coins.spacing, 1.05);
+    for (var i = 0; i < 3; i++) pushCoin(block, safe, C.blockLength * 0.62 + i * C.coins.spacing, C.coins.baseY);
     block.meta = { type: 'low', lane: lane, kind: 'low' };
   }
 
@@ -104,10 +104,10 @@
     block.obstacles.push(makeObstacle('bar', lane, C.blockLength * 0.5));
     block.safeLanes = [0, 1, 2].filter(function (l) { return l !== lane; });
     // 横杆下方金币：滑铲吃到
-    pushCoin(block, lane, C.blockLength * 0.5 - 1.6, 0.55);
-    pushCoin(block, lane, C.blockLength * 0.5 + 1.6, 0.55);
+    pushCoin(block, lane, C.blockLength * 0.5 - C.coins.barSpread, C.coins.slideY);
+    pushCoin(block, lane, C.blockLength * 0.5 + C.coins.barSpread, C.coins.slideY);
     var safe = rng.pick(block.safeLanes);
-    for (var i = 0; i < 3; i++) pushCoin(block, safe, C.blockLength * 0.62 + i * C.coins.spacing, 1.05);
+    for (var i = 0; i < 3; i++) pushCoin(block, safe, C.blockLength * 0.62 + i * C.coins.spacing, C.coins.baseY);
     block.meta = { type: 'bar', lane: lane, kind: 'bar' };
   }
 
@@ -121,7 +121,7 @@
     });
     block.safeLanes = [safe];
     // 安全轨金币 + 顶部提示金币
-    for (var i = 0; i < 4; i++) pushCoin(block, safe, 8 + i * C.coins.spacing, 1.05);
+    for (var i = 0; i < 4; i++) pushCoin(block, safe, 8 + i * C.coins.spacing, C.coins.baseY);
     block.meta = { type: 'double', lane: safe, kind: kind };
   }
 
@@ -130,7 +130,7 @@
     if (rng.chance(0.5)) {
       var lane = rng.int(C.lanes);
       var n = 4;
-      for (var i = 0; i < n; i++) pushCoin(block, lane, 6 + i * C.coins.spacing, 1.05);
+      for (var i = 0; i < n; i++) pushCoin(block, lane, 6 + i * C.coins.spacing, C.coins.baseY);
     }
     block.meta = { type: 'empty', lane: -1, kind: 'none' };
   }
@@ -142,13 +142,13 @@
       lane: lane,
       x: laneX(lane),
       dist: block.startDist + C.blockLength * 0.72,
-      y: 1.15,
+      y: C.items.itemY,
       taken: false,
       // 拾取前就能看见是什么道具（护盾 / 磁铁 / 双倍）
       kind: rng.weighted({ shield: 0.4, magnet: 0.3, double: 0.3 })
     };
     var coinLane = (lane + 1) % C.lanes;
-    for (var i = 0; i < 3; i++) pushCoin(block, coinLane, 8 + i * C.coins.spacing, 1.05);
+    for (var i = 0; i < 3; i++) pushCoin(block, coinLane, 8 + i * C.coins.spacing, C.coins.baseY);
     block.meta = { type: 'item', lane: lane, kind: 'none' };
   }
 

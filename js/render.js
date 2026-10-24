@@ -291,10 +291,10 @@
       }
       // 立柱
       this.face(cam, [
-        [x - hw - 0.12, 0, zNear], [x - hw, 0, zNear], [x - hw, y1, zNear], [x - hw - 0.12, y1, zNear]
+        [x - hw - C.railHalfWidth, 0, zNear], [x - hw, 0, zNear], [x - hw, y1, zNear], [x - hw - C.railHalfWidth, y1, zNear]
       ], '#7a5a12', null);
       this.face(cam, [
-        [x + hw, 0, zNear], [x + hw + 0.12, 0, zNear], [x + hw + 0.12, y1, zNear], [x + hw, y1, zNear]
+        [x + hw, 0, zNear], [x + hw + C.railHalfWidth, 0, zNear], [x + hw + C.railHalfWidth, y1, zNear], [x + hw, y1, zNear]
       ], '#7a5a12', null);
     }
 

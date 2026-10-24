@@ -9,7 +9,7 @@
   'use strict';
 
   var CONFIG = {
-    version: '2.2.0',
+    version: '2.2.1',
 
     /* ---------------- 轨道与地块 ---------------- */
     lanes: 3,              // 三轨，禁止 1<->3 直跳
@@ -115,13 +115,22 @@
       value: 10,
       chainStep: 8,        // 每 8 连击 +1 倍率
       chainMax: 4,         // 倍率上限 5x (1+4)
-      magnetRadius: 7.0
+      magnetRadius: 7.0,
+
+      // 摆放几何（原写死在 blocks.js，现收归配置）
+      baseY: 1.05,         // 默认金币悬浮高度
+      arcY: 1.45,          // 低障碍上方金币弧线两端高度
+      peakY: 1.62,         // 低障碍上方金币弧线顶点
+      slideY: 0.55,        // 横杆下方金币高度（滑铲时吃到）
+      arcSpread: 2.2,      // 低障碍上方金币前后铺开（米）
+      barSpread: 1.6       // 横杆下方金币前后铺开（米）
     },
 
     /* ---------------- 道具（R-10 主动使用） ---------------- */
     items: {
       slots: 3,
-      shieldDuration: 12.0,
+      itemY: 1.15,          // 道具悬浮高度
+      // 护盾是一次性格挡（撞一次即消耗），没有持续时间，故无 shieldDuration
       magnetDuration: 8.0,
       doubleDuration: 8.0
     },

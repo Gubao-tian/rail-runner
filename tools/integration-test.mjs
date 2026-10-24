@@ -118,8 +118,10 @@ const SOURCES = [
   'js/render.js',
   'js/game.js'
 ];
+const SRC = new Map();
 for (const f of SOURCES) {
   const code = fs.readFileSync(path.join(ROOT, f), 'utf8');
+  SRC.set(f, code);
   // 直接 eval：IIFE 内的 'use strict' 仅作用于自身，副作用（挂 RR）落在 globalThis
   (0, eval)(code);
 }
@@ -144,7 +146,7 @@ function section(t) { console.log('\n— ' + t + ' —'); }
 /* ------------------------------------------------------------------ */
 section('0. 配置整洁（V2.2 死配置清理 + 站姿高度配置化）');
 
-ok('版本号已升到 2.2.0', C.version === '2.2.0', C.version);
+ok('版本号已升到 2.2.1', C.version === '2.2.1', C.version);
 ok('timing.restartAuto 已删除', C.timing.restartAuto === undefined);
 ok('coins.magnetPull 已删除', C.coins.magnetPull === undefined);
 ok('items.dropWeight 已删除', C.items.dropWeight === undefined);
@@ -264,6 +266,45 @@ game.fps = undefined;
 for (let i = 0; i < 400; i++) game.sampleFps(0.016);
 ok('正常帧窗口均值 ≈ 真实 fps（62.5）', game.fps && Math.abs(game.fps.avg - 62.5) < 1.0,
   game.fps ? `avg=${game.fps.avg}` : 'no fps');
+
+/* ------------------------------------------------------------------ */
+section('8. 配置单一数据源（P0 一致性：配置值不再写死在代码里）');
+
+const renderSrc = SRC.get('js/render.js');
+const blocksSrc = SRC.get('js/blocks.js');
+const gameSrc = SRC.get('js/game.js');
+
+ok('render.js 使用 C.railHalfWidth（立柱宽度）', /railHalfWidth/.test(renderSrc));
+ok('render.js 不再写死立柱宽度 0.12',
+  !/hw\s*-\s*0\.12/.test(renderSrc) && !/hw\s*\+\s*0\.12/.test(renderSrc));
+
+ok('config.coins 新增金币摆放参数',
+  C.coins.baseY === 1.05 && C.coins.arcY === 1.45 && C.coins.peakY === 1.62 &&
+  C.coins.slideY === 0.55 && C.coins.arcSpread === 2.2 && C.coins.barSpread === 1.6);
+ok('config.items.itemY 存在', C.items.itemY === 1.15);
+ok('items.shieldDuration 已删除（护盾为一次性格挡，无时长语义）',
+  C.items.shieldDuration === undefined);
+
+ok('blocks.js 不再写死金币高度 1.05', !/1\.05/.test(blocksSrc));
+ok('blocks.js 不再写死金币弧线/横杆金币参数（2.2 / 1.6 / 0.55）',
+  !/\b2\.2\b/.test(blocksSrc) && !/\b1\.6\b/.test(blocksSrc) && !/\b0\.55\b/.test(blocksSrc));
+
+ok('game.js 提示不再写死换道时长 0.12', !/换道要 0\.12 秒/.test(gameSrc));
+ok('game.js 提示不再写死滑铲时长 0.55', !/滑铲只持续 0\.55 秒/.test(gameSrc));
+ok('game.js 提示不再写死滞空 0.69（改为按 jumpImpulse/gravity 推导）', !/0\.69 秒/.test(gameSrc));
+
+// 行为验证：改配置后生成的金币高度真的跟着变——证明是"接线"而不是数字巧合
+const baseY0 = C.coins.baseY;
+C.coins.baseY = 9.99;
+let prevB = null, hitBaseY = false;
+const rngB = new RR.RNG(12345);
+for (let i = 0; i < 200 && !hitBaseY; i++) {
+  const b = RR.Blocks.generate({ index: i, startDist: i * C.blockLength, rng: rngB, prev: prevB });
+  prevB = b;
+  if (b.coins && b.coins.some(function (c) { return c.y === 9.99; })) hitBaseY = true;
+}
+C.coins.baseY = baseY0;
+ok('改 C.coins.baseY 后生成的金币高度跟随（证明已接线而非巧合）', hitBaseY);
 
 /* ------------------------------------------------------------------ */
 console.log('\n' + '='.repeat(56));

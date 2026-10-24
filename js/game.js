@@ -624,7 +624,7 @@
     if (block.type === 'double') {
       if (p.state === S.SWITCH) {
         title = '换道时机不对';
-        hint = '换道要 0.12 秒才完成，看到双轨障碍就要更早按方向键。';
+        hint = '换道要 ' + C.timing.laneSwitch.toFixed(2) + ' 秒才完成，看到双轨障碍就要更早按方向键。';
       } else if (block.safeLanes.indexOf(p.lane) < 0) {
         title = '没有换到安全轨';
         hint = '双轨障碍左右各堵一条，只有一条安全轨。';
@@ -636,18 +636,20 @@
     }
 
     var isLow = obs.kind === 'low';
+    // 滞空时长由起跳初速与重力推导（2v0/g），改配置时文案自动跟随
+    var airTime = (2 * C.player.jumpImpulse / C.player.gravity).toFixed(2);
     if (isLow) {
       if (p.state === S.JUMP_UP || p.state === S.JUMP_DOWN || airborne) {
         if (p.vy < 0 || p.y < 0.45) {
           title = '起跳过早';
-          hint = '跳跃滞空约 0.69 秒，太早跳会落在障碍上。等它再近一点。';
+          hint = '跳跃滞空约 ' + airTime + ' 秒，太早跳会落在障碍上。等它再近一点。';
         } else {
           title = '起跳过晚';
           hint = '起跳后还没抬到障碍高度，试着提前 0.05~0.1 秒。';
         }
       } else if (this.time - this.lastJumpAt < 1.4) {
         title = '起跳过早';
-        hint = '你跳了，但落地时正好撞上。跳跃只持续 0.69 秒。';
+        hint = '你跳了，但落地时正好撞上。跳跃只持续 ' + airTime + ' 秒。';
       } else {
         title = '没有起跳';
         hint = '橙色三角是需要跳过去的低障碍。';
@@ -658,7 +660,7 @@
         hint = '横杆需要全程压低身体，提前 0.1 秒开始滑。';
       } else if (this.time - this.lastSlideAt < 1.4) {
         title = '滑铲过早';
-        hint = '滑铲只持续 0.55 秒，太早滑会站起来撞上横杆。';
+        hint = '滑铲只持续 ' + C.player.slideDuration.toFixed(2) + ' 秒，太早滑会站起来撞上横杆。';
       } else {
         title = '没有滑铲';
         hint = '黄色横梁需要滑铲通过。';
