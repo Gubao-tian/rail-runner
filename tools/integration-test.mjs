@@ -146,7 +146,7 @@ function section(t) { console.log('\n— ' + t + ' —'); }
 /* ------------------------------------------------------------------ */
 section('0. 配置整洁（V2.2 死配置清理 + 站姿高度配置化）');
 
-ok('版本号已升到 2.2.6', C.version === '2.2.6', C.version);
+ok('版本号已升到 2.2.7', C.version === '2.2.7', C.version);
 ok('timing.restartAuto 已删除', C.timing.restartAuto === undefined);
 ok('coins.magnetPull 已删除', C.coins.magnetPull === undefined);
 ok('items.dropWeight 已删除', C.items.dropWeight === undefined);
@@ -525,6 +525,66 @@ let toasted = '';
 game12b.toast = function (msg) { toasted = msg; };
 game12b.useFirstItem();
 ok('空背包使用道具时给出提示（不再静默）', toasted.length > 0, 'toast=' + toasted);
+
+/* ------------------------------------------------------------------ */
+section('13. 道具掉落率：不能太稀疏（含保底机制）');
+
+ok('config.items.pityBlocks 存在（保底块数）', typeof C.items.pityBlocks === 'number' && C.items.pityBlocks > 0,
+  'pityBlocks=' + C.items.pityBlocks);
+
+// 用固定种子生成 300 块地，统计道具块占比与最长空档
+function sampleItemDrop(seed, n) {
+  const rng = new RR.RNG(seed);
+  let prevMeta = null;
+  let cursor = 0;
+  let itemCount = 0;
+  let maxGap = 0;
+  let gap = 0;
+  const gaps = [];
+  for (let i = 0; i < n; i++) {
+    const b = RR.Blocks.generate({ index: i, startDist: cursor, rng, prev: prevMeta });
+    prevMeta = b.meta;
+    cursor += C.blockLength;
+    if (b.type === 'item' && b.item) {
+      itemCount++;
+      if (i >= C.newbie.blocks) gaps.push(gap);
+      gap = 0;
+    } else {
+      gap++;
+      if (i >= C.newbie.blocks && gap > maxGap) maxGap = gap;
+    }
+  }
+  return { itemCount, ratio: itemCount / n, maxGap, gaps };
+}
+
+const drop1 = sampleItemDrop(12345, 300);
+const drop2 = sampleItemDrop(777, 300);
+
+// 反向对照：旧的 3% 权重下，300 块里只有约 9 个道具
+ok('道具占比 ≥ 10%（原 3% 权重约 3%）',
+  drop1.ratio >= 0.10 && drop2.ratio >= 0.10,
+  `seed12345=${(drop1.ratio * 100).toFixed(1)}% seed777=${(drop2.ratio * 100).toFixed(1)}%`);
+
+// 保底：任意连续 pityBlocks 块内必须出现道具（新手区之后）
+const pity = C.items.pityBlocks || 999;
+ok('连续 ' + pity + ' 块内必有道具（保底生效）',
+  drop1.maxGap < pity && drop2.maxGap < pity,
+  `maxGap seed12345=${drop1.maxGap} seed777=${drop2.maxGap}`);
+
+// 保底不应破坏既有约束：道具块无障碍、落在安全车道
+let dropViolations = 0;
+{
+  const rng = new RR.RNG(999);
+  let prevMeta = null;
+  let cursor = 0;
+  for (let i = 0; i < 200; i++) {
+    const b = RR.Blocks.generate({ index: i, startDist: cursor, rng, prev: prevMeta });
+    prevMeta = b.meta;
+    cursor += C.blockLength;
+    if (RR.Blocks.validate(b).length) dropViolations++;
+  }
+}
+ok('高掉落下地块仍全部合法（保底不破坏约束）', dropViolations === 0, 'violations=' + dropViolations);
 
 /* ------------------------------------------------------------------ */
 console.log('\n' + '='.repeat(56));

@@ -110,11 +110,13 @@ near('doubleWeight(2000) 封顶', D.doubleWeight(2000), 0.30, 1e-9);
 near('doubleWeight(300)', D.doubleWeight(300), 0.06 + (0.14 - 0.06) * (50 / 250), 0.002);
 
 const w0 = D.weights(0);
-near('w(0).empty', w0.empty, 0.45, 1e-6);
+// 注：item 权重自 V2.2.7 提升（0.03 → 0.08），来源是 empty（0.45 → 0.40）。
+// low/bar/coin 的 raw 值未变，故其绝对概率仍为 0.25/0.22/0.05。
+near('w(0).empty', w0.empty, 0.40, 1e-6);
 near('w(0).low', w0.low, 0.25, 1e-6);
 near('w(0).bar', w0.bar, 0.22, 1e-6);
 near('w(0).coin', w0.coin, 0.05, 1e-6);
-near('w(0).item', w0.item, 0.03, 1e-6);
+near('w(0).item', w0.item, 0.08, 1e-6);
 
 /* ------------------------------------------------------------------ */
 section('3. 地块生成约束（R-06/R-07/附录 B）');

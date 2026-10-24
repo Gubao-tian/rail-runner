@@ -63,6 +63,13 @@
     return w;
   }
 
+  /** prev 可能是 block，也可能只是 block.meta（调用方两种都传过）。 */
+  function metaOf(prev) {
+    if (!prev) return null;
+    if (prev.meta) return prev.meta;
+    return prev;
+  }
+
   function pickType(dist, rng, prev, index) {
     return rng.weighted(allowedWeights(dist, prev, index));
   }
@@ -178,7 +185,17 @@
     if (index === 0) type = 'coin';           // §5.4 第 1 块纯金币
     else if (index === 1) type = 'low';       // §5.4 第 2 块教跳
     else if (index === 2) type = 'bar';       // §5.4 第 3 块教滑
-    else type = pickType(startDist, rng, prev, index);
+    else {
+      type = pickType(startDist, rng, prev, index);
+
+      // 保底：连续 pityBlocks 块没出道具就强制出一块，避免长期颗粒无收。
+      // 新手教学区（index < newbie.blocks）不强制，保证教学节奏。
+      var pm = metaOf(prev);
+      var sinceItem = pm && typeof pm.sinceItem === 'number' ? pm.sinceItem : 0;
+      if (type !== 'item' && index >= C.newbie.blocks && sinceItem + 1 >= C.items.pityBlocks) {
+        type = 'item';
+      }
+    }
 
     block.type = type;
 
@@ -190,11 +207,13 @@
     else buildEmptyBlock(block, rng);
 
     block.safeLanes = block.safeLanes.slice().sort(function (a, b) { return a - b; });
-    // 统一 meta：下一块地的约束只关心 类型 / 障碍轨道 / 障碍种类
+    // 统一 meta：下一块地的约束只关心 类型 / 障碍轨道 / 障碍种类 / 距上个道具的块数
     block.meta = {
       type: type,
       lane: block.obstacles.length ? block.obstacles[0].lane : (block.item ? block.item.lane : -1),
-      kind: block.obstacles.length ? block.obstacles[0].kind : 'none'
+      kind: block.obstacles.length ? block.obstacles[0].kind : 'none',
+      // 保底计数：本块是道具则归零，否则累加
+      sinceItem: (type === 'item' && block.item) ? 0 : (metaOf(prev) && typeof metaOf(prev).sinceItem === 'number' ? metaOf(prev).sinceItem : 0) + 1
     };
     return block;
   }
